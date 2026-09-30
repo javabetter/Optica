@@ -1,0 +1,74 @@
+// Modified for Optica from Photonics (https://github.com/Redi2Go/PhotonicEngine),
+// Copyright Redi2Go and Essentuan, licensed under LGPL-3.0. See NOTICE.md.
+package com.optica.core.rendering.world.registry.block;
+
+import com.optica.core.rendering.world.allocator.VoxelEntryMemory;
+import com.optica.core.rendering.world.block.palette.PaletteEntry;
+import com.optica.core.rendering.world.registry.block.builder.VoxelLayerBuilder;
+import com.optica.core.rendering.world.registry.palete.PaletteRegistry;
+import com.optica.core.rendering.world.tree.VoxelTreeEntry;
+import com.optica.core.rendering.world.tree.VoxelTreeNode;
+import org.jetbrains.annotations.Nullable;
+import org.joml.Vector3i;
+
+public class VoxelLayer extends BlockNodeObject {
+    private long hash;
+    private long childMask = 0;
+
+    VoxelLayer(
+            VoxelLayerBuilder node,
+            PaletteRegistry paletteRegistry,
+            BlockRegistry blockRegistry
+    ) {
+        super(blockRegistry, VOXEL_DEPTH);
+
+        long hash = 1;
+
+        for (int i = 0; i < ENTRIES_SIZE; i++) {
+            hash = hash * 31;
+
+            var entry = node.getEntry(i);
+            if (entry == null) continue;
+
+            setEntry(i, paletteRegistry.allocate((PaletteEntry) entry));
+            hash+= entry.hashCode();
+        }
+
+        this.hash = hash;
+    }
+
+    public long longHashCode() {
+        return hash;
+    }
+
+    @Override
+    protected boolean useChildMask() {
+        return false;
+    }
+
+    @Override
+    protected int extraFieldCount() {
+        return 0;
+    }
+
+    @Override
+    public void uploadTo(VoxelEntryMemory memory) {
+         memory.setEntryFlag(true);
+         super.uploadTo(memory);
+    }
+
+    @Override
+    public int hashCode() {
+        return Long.hashCode(hash);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o == this || (o instanceof VoxelLayer other && other.hash == hash);
+    }
+
+    @Override
+    protected VoxelTreeNode createNode(int x, int y, int z) {
+        throw new UnsupportedOperationException("createNode");
+    }
+}

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "optica",
+  "version": "${version}",
+  "name": "Optica",
+  "description": "A port of the Photonics voxel raytracing engine (an Iris extension) to Minecraft 26.1.2, with Euphoria Patches support.",
+  "authors": [
+    "GamingLegend123"
+  ],
+  "contact": {
+    "homepage": "https://github.com/javabetter/Optica",
+    "sources": "https://github.com/javabetter/Optica",
+    "issues": "https://github.com/javabetter/Optica/issues"
+  },
+  "license": "LGPL-3.0-only",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.optica.OpticaClient"
+    ]
+  },
+  "mixins": [
+    "optica-common.mixins.json",
+    "optica-common-impl.mixins.json",
+    "optica-fabric-impl.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "~26.1.2",
+    "java": ">=25",
+    "fabric-api": "*",
+    "iris": ">=1.11.3",
+    "sodium": ">=0.9.1"
+  },
+  "icon": "assets/optica/icon.png",
+  "breaks": {
+    "photonics": "*"
+  },
+  "contributors": [
+    "Redi2Go (Photonics)",
+    "Essentuan (Photonics)"
+  ]
+}

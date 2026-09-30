@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#15213a"/><stop offset="1" stop-color="#0d1526"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd36b" stop-opacity="0.55"/><stop offset="1" stop-color="#ffd36b" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rayIn" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe7a3" stop-opacity="0"/><stop offset="1" stop-color="#ffe7a3"/>
+    </linearGradient>
+    <linearGradient id="rayOut" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#8fd8ff"/><stop offset="1" stop-color="#8fd8ff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="top" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8fdcff"/><stop offset="1" stop-color="#5cc3fb"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#bg)"/>
+  <circle cx="128" cy="138" r="78" fill="#243d5e" opacity="0.8"/>
+  <!-- cube -->
+  <g stroke="#0d1526" stroke-width="3" stroke-linejoin="round">
+    <polygon points="128,80 184,112 128,144 72,112" fill="url(#top)"/>
+    <polygon points="72,112 128,144 128,208 72,176" fill="#3aa0e6"/>
+    <polygon points="128,144 184,112 184,176 128,208" fill="#1f78c4"/>
+  </g>
+  <!-- voxel grid -->
+  <g stroke="#0d1526" stroke-opacity="0.35" stroke-width="2" fill="none">
+    <line x1="100" y1="96" x2="156" y2="128"/><line x1="156" y1="96" x2="100" y2="128"/>
+    <line x1="100" y1="128" x2="100" y2="192"/><line x1="72" y1="144" x2="128" y2="176"/>
+    <line x1="156" y1="128" x2="156" y2="192"/><line x1="128" y1="176" x2="184" y2="144"/>
+  </g>
+  <!-- light rays -->
+  <polygon points="30,26 42,20 132,108 124,116" fill="url(#rayIn)"/>
+  <polygon points="124,116 132,108 226,44 232,56" fill="url(#rayOut)"/>
+  <circle cx="128" cy="112" r="30" fill="url(#glow)"/>
+  <path d="M128 92 C130 106 134 110 148 112 C134 114 130 118 128 132 C126 118 122 114 108 112 C122 110 126 106 128 92 Z" fill="#fff6d8"/>
+  <!-- sparkles -->
+  <path d="M206 170 C207 180 210 183 220 184 C210 185 207 188 206 198 C205 188 202 185 192 184 C202 183 205 180 206 170 Z" fill="#f5c451"/>
+  <path d="M54 196 C55 203 57 205 64 206 C57 207 55 209 54 216 C53 209 51 207 44 206 C51 205 53 203 54 196 Z" fill="#f5c451"/>
+</svg>

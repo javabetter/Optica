@@ -1,0 +1,173 @@
+#include "/photonics/interface/lighting_interface.glsl"
+#include "/photonics/tracing.glsl"
+#include "/photonics/utility/random.glsl"
+
+#include "/photonics/modifiers/indirect_surface_sample_modifier.glsl"
+
+//TODO: Make these into settings
+#define PH_MAX_GI_ITERATIONS 100
+
+#if defined NO_SHADOW_MAPPED
+#define should_trace_to_sun(rnd_state, bounce_count, surface_rt_pos, surface_normal, is_tracing_to_sun) \
+    (bounce_count) > -1 && ph_rand_next_float(rnd_state) < 0.25f && dot(get_sun_direction(), (surface_normal)) >= 0.707f;
+#else
+#define should_trace_to_sun(rnd_state, bounce_count, surface_rt_pos, surface_normal, is_tracing_to_sun) \
+    is_tracing_to_sun
+#endif
+
+vec3 next_gi_direction(
+        inout uint rnd_state,
+        int bounce_count,
+        vec3 surface_rt_pos,
+        vec3 surface_normal,
+        inout bool is_tracing_to_sun
+) {
+    // the first random call needs to be the direction for ReSTIR GI
+    vec3 next_dir = ph_rand_direction(rnd_state, surface_normal);
+    if (should_trace_to_sun(rnd_state, bounce_count, surface_rt_pos, surface_normal, is_tracing_to_sun)) {
+        is_tracing_to_sun = true;
+        return get_sun_direction();
+    }
+
+    return next_dir;
+}
+
+void prepare_next_gi_ray(
+        inout RayIterator ray,
+        inout uint rnd_state,
+        int bounce_count,
+
+        vec3 rt_pos,
+        vec3 normal,
+        inout bool is_tracing_to_sun
+) {
+    ray_iter_set_direction(
+            ray,
+            next_gi_direction(
+                    rnd_state,
+                    bounce_count,
+                    rt_pos,
+                    normal,
+                    is_tracing_to_sun
+            )
+    );
+
+    if (bounce_count != -1)
+        ray_iter_offset_position(ray, ray.direction * 0.03f);
+}
+
+#define should_apply_transparency(hit, albedo, rnd_state) \
+    (ray_result_is_transparent(hit) && ph_rand_next_float(rnd_state) > albedo.a)
+
+
+void sample_indirect(
+        inout vec3 indirect_color,
+        vec3 sample_rt_pos,
+        vec3 normal,
+        uint rnd_state,
+
+        out vec3 first_hit,
+        out vec3 first_normal
+) {
+    vec4 running_tint_color = vec4(0.0f);
+    vec3 running_bounce_color = vec3(1.0f);
+    bool is_tracing_to_sun = false;
+
+    RayIterator ray;
+
+    ray.iterations = PH_MAX_GI_ITERATIONS;
+    ray_iter_set_position(ray, sample_rt_pos);
+    prepare_next_gi_ray(ray, rnd_state, -1, sample_rt_pos, normal, is_tracing_to_sun);
+
+    for (int bounce = -1; bounce < PH_MAX_GI_BOUNCES; bounce++) {
+        RayResult hit = ray_iter_next(ray);
+        if (ray.iterations <= 0) return;
+
+        vec3 hit_position = ray_result_position(hit);
+        vec3 hit_normal = ray_result_normal(hit);
+
+        vec4 albedo = vec4(1.0f);
+        vec3 radiance_color = vec3(0.0f);
+
+        if (ray_result_is_hit(hit)) { // Hit something
+            albedo = voxel_data_albedo(ray_result_voxel_data(hit));
+
+            if (should_apply_transparency(hit, albedo, rnd_state)) {
+                ray_iter_apply_transparency(running_tint_color, albedo);
+                ray_iter_skip_block(ray);
+
+                bounce--;
+                continue;
+            }
+
+            if (bounce == -1) {
+                first_hit = hit_position;
+                first_normal = hit_normal;
+            }
+
+            is_tracing_to_sun = false;
+
+#if !defined NO_SHADOW_MAPPING
+            if (dot(get_sun_direction(), hit_normal) >= -0.01f) {
+                is_tracing_to_sun = !sample_sun_color(hit_position - rt_camera_position, hit_normal, radiance_color)
+                    && ph_rand_next_float(rnd_state) < 0.6f;
+
+                radiance_color *= albedo.rgb;
+            }
+#endif
+
+#if defined PH_ENABLE_BLOCKLIGHT_GI
+            #define PH_SHOULD_SAMPLE_LIGHT (bounce != -1 || hit_light.type == LIGHT_TYPE_NOT_TRACED)
+            const float gi_light_multiplier = 3.0f;
+#else
+            #define PH_SHOULD_SAMPLE_LIGHT hit_light.type == LIGHT_TYPE_NOT_TRACED
+            const float gi_light_multiplier = 3.0f;
+#endif
+
+#if defined PH_INDIRECT_SURFACE_SAMPLE_MODIFIER_DISABLED
+            Light hit_light = ray_result_light_data(hit);
+            if (light_is_valid(hit_light) && PH_SHOULD_SAMPLE_LIGHT) {
+                radiance_color += light_sample_at(
+                        hit_light,
+                        sample_rt_pos,
+                        floor(hit_position) + 0.5f,
+                        normal,
+                        normal
+                ) * gi_light_multiplier * (1.0f / albedo.a);
+            }
+#else
+            modify_indirect_surface_sample(
+                    hit,
+                    sample_rt_pos,
+                    normal,
+                    bounce,
+                    rnd_state,
+
+                    radiance_color
+            );
+#endif
+        } else { // Hit sky
+            vec3 player_pos = hit_position - rt_camera_position;
+            radiance_color = is_tracing_to_sun ? get_sun_color(player_pos, ray.direction) : get_sky_color(player_pos, ray.direction);
+
+            if (bounce == -1) {
+                const float infinity = intBitsToFloat(0x7f800000);
+
+                first_hit = vec3(infinity);
+                first_normal = -ray.direction;
+            }
+        }
+
+        #define gi_tint_color (running_tint_color != vec4(0.0) ? running_tint_color.rgb : vec3(1.0f))
+        #define gi_bounce_color running_bounce_color
+
+        indirect_color += radiance_color * gi_tint_color * gi_bounce_color;
+
+        if (!ray_result_is_hit(hit)) return;
+
+        running_bounce_color *= albedo.rgb;
+        sample_rt_pos = hit_position;
+        normal = hit_normal;
+        prepare_next_gi_ray(ray, rnd_state, bounce, sample_rt_pos, normal, is_tracing_to_sun);
+    }
+}

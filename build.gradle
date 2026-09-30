@@ -1,0 +1,80 @@
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+	archivesName = project.archives_base_name
+}
+
+repositories {
+	// Loom automatically adds the Mojang/Fabric repos needed to fetch Minecraft itself.
+	maven {
+		name = 'Modrinth'
+		url = 'https://api.modrinth.com/maven'
+		content { includeGroup 'maven.modrinth' }
+	}
+	mavenCentral()
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+
+	// No `mappings` block: starting with 26.x, Minecraft ships unobfuscated, so Loom uses the
+	// jar's own names directly and plain implementation/compileOnly work without remapping.
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Optica is an Iris extension (like Photonics), so Iris and Sodium are hard dependencies.
+	implementation "maven.modrinth:iris:${project.iris_version}"
+	implementation "maven.modrinth:sodium:${project.sodium_version}"
+
+	// Shipped inside the Iris jar; only needed to compile against.
+	compileOnly "io.github.douira:glsl-transformer:${project.glsl_transformer_version}"
+	compileOnly "org.anarres:jcpp:${project.jcpp_version}"
+	compileOnly "org.antlr:antlr4-runtime:${project.antlr_version}"
+
+	// Libraries the engine uses that Minecraft doesn't ship; bundled as jar-in-jar.
+	include(implementation("com.vdurmont:semver4j:${project.semver4j_version}"))
+	include(implementation("com.trivago:fastutil-concurrent-wrapper:${project.fastutil_concurrent_wrapper_version}") {
+		transitive = false
+	})
+}
+
+processResources {
+	inputs.property "version", project.version
+	filesMatching("fabric.mod.json") {
+		expand "version": project.version
+	}
+}
+
+// LGPL-3.0 requires the license texts to travel with the jar.
+jar {
+	from(rootDir) {
+		include "LICENSE.md", "LICENSE-GPL-3.0.txt", "LICENSE-ADDITIONAL-TERMS.md", "NOTICE.md"
+		into "META-INF/licenses/optica"
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 25
+	it.options.encoding = 'UTF-8'
+}
+
+java {
+	withSourcesJar()
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}
+
+// Release jar naming: "Optica v<mod_version> <minecraft_version>.jar".
+def releaseFileBaseName = "Optica v${project.mod_version} ${project.minecraft_version}"
+tasks.withType(AbstractArchiveTask).configureEach { task ->
+	if (task.name == "jar" || task.name == "remapJar") {
+		task.archiveFileName.set("${releaseFileBaseName}.jar")
+	} else if (task.name == "sourcesJar" || task.name == "remapSourcesJar") {
+		task.archiveFileName.set("${releaseFileBaseName}-sources.jar")
+	}
+}
