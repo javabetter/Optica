@@ -62,13 +62,25 @@ void main() {
 
     vec4 history = load_history();
 
+    // Optica: level of detail by distance. A GI path is traced every other frame nearby and more rarely
+    // further away (interleaved over a 4x4 tile); in between the accumulated history is reused. Pixels
+    // with little history (just revealed) always trace.
+    float distance = length(frag_player_pos);
+    int interval = distance < 48.0f ? 2 : distance < 96.0f ? 4 : 8;
+    ivec2 pixel = ivec2(gl_FragCoord.xy);
+    int phase = (pixel.x & 3) | ((pixel.y & 3) << 2);
+
+    if (!frag_is_hand && history.a >= 4.0f && ((frameCounter + phase) % interval) != 0) {
+        legacy_gi_out = history;
+        return;
+    }
+
     vec3 indirect = vec3(0.0f);
     vec3 hit_position;
     vec3 hit_normal;
 
     sample_indirect(indirect, frag_rt_pos, frag_tex_normal, frag_rnd_state, hit_position, hit_normal);
     if (any(isnan(indirect)) || any(isinf(indirect))) indirect = vec3(0.0f);
-
     float frames = min(history.a + 1.0f, ph_legacy_gi_max_frames);
 
     legacy_gi_out = vec4(mix(history.rgb, indirect, 1.0f / frames), frames);

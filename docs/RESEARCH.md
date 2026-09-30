@@ -1,9 +1,5 @@
 # Optica — research notes
 
-> This is the `photonics-port` branch: the Photonics port with compatibility work and bug fixes only.
-> Performance work (light merging, distance LOD, temporal reuse of BASIC direct light, cheaper
-> shadow rays, the atlas cache) lives on `main`.
-
 Research done on 2026-09-26, before any engine code was written. Optica's goal is to be a
 Photonics-equivalent voxel raytracing engine for Minecraft **26.1.2** (Fabric), keeping
 **Euphoria Patches** compatible.
@@ -335,6 +331,9 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   - Light bins (`LightBins`, an 8-block cell grid of 64³ cells around the camera) feed a
     direct-light pass. The pass keeps the `PH_MAX_SAMPLES` brightest reachable lights per
     fragment and traces a shadow ray to each.
+- Direct light is cached over time, as in 0.3.x: a pixel with valid reprojected history reuses it and
+  re-traces its lights only every `PH_SHARP_REFRESH_INTERVAL` (4) frames, interleaved 2x2. Newly
+  revealed pixels and the hand are traced every frame. This cuts BASIC mode's shadow rays roughly 4x.
 - Legacy GI: when the pack's combined GI is off (BASIC, or ReSTIR with combined GI disabled), a
   1-spp temporally accumulated sky GI pass plus an edge-aware blur feeds the pack's
   `write_indirect()` (EP: `colortex9`).
@@ -349,13 +348,30 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   `ShaderProperties` too, which used to tear down the live Photonics pipeline under a cached Iris
   pipeline ("unexpected active renderers size" crash on Hypixel). Identical properties are now a
   no-op. Stale Iris pipelines are detected by a generation counter and trigger a pipeline rebuild
-  (see "Pipeline lifecycle"). A mismatch disables Photonics for that pipeline instead of throwing.
+  (see "Pipeline lifecycle (round 3)"). A mismatch disables Photonics for that pipeline instead of throwing.
+- Light LOD: dense groups of identical lights are merged per cell, with cells growing with distance
+  (2/4/8/16 blocks). Brightness gain is `count^1` for ReSTIR (it sums all lights) and `count^0.5`
+  for BASIC (it sums only the brightest `PH_MAX_SAMPLES`). The attenuation constant is softened by the
+  members' spread. Test world: 3,588 → about 840 lights.
 - Lighting rendered at `PH_RENDER_SCALE < 1` is upsampled depth-aware (`rendering/upsample.glsl`).
   0.4's `is_hand_at()` and the default depth fetch ignored the render scale; they now go through the
-  scaled 0.3.x hooks. The legacy GI history and blur never mix hand and world pixels.
+  scaled 0.3.x hooks. The legacy GI and BASIC history never mix hand and world pixels.
 - A stall watchdog logs the render thread's stack when the game has not ticked for 5 s.
 
-**Pipeline lifecycle**
+**Performance round 2**
+- Light merging is coarser: cells of 2/4/8/16/32 blocks by distance, lava one level coarser, and
+  groups of 2+ merge in cells of 8 or more. If the result still exceeds the light budget, the cells
+  are doubled (up to 3 passes).
+- Distance LOD in BASIC: the direct-light refresh interval is 4/8/16 frames and the light count is
+  100%/50%/25% of `PH_MAX_SAMPLES` (thresholds 16/24/40/64 blocks). Legacy GI traces every
+  2/4/8 frames; its blur is 3x3 beyond 32 blocks.
+- `trace_light_vis` ignored `max_iterations` (always 100). BASIC now uses 64, which was visually
+  identical in testing; ReSTIR passes 100, which keeps its old behavior.
+- Downloaded block atlases (and PBR maps) are cached across pipelines through soft references, so a
+  dimension change no longer reads them back from the GPU. The cache is cleared on resource reload
+  and keyed by shader pack.
+
+**Pipeline lifecycle (round 3)**
 - Parsing shader properties never destroys the running Photonics pipeline; real option changes go
   through an Iris reload, which destroys it anyway.
 - The Photonics pipeline remembers its level. If the level changes while Iris pipelines survive (some
@@ -365,6 +381,9 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   `Minecraft.execute` and crashed ("Tried to use a destroyed GlResource").
 - Watchdog finding: first-visit dimension freezes are Iris' CPU-side shader transformation
   (glsl-transformer), not driver compilation, so the NVIDIA shader cache size does not matter.
+- ReSTIR distance LOD: initial candidates 100/50/25% (32/64 blocks), the di0 visibility pre-check is
+  skipped beyond 48 blocks, and GI paths are traced every 1/2/4 frames (48/96 blocks). BASIC's LOD
+  boundaries were pushed out (samples 100/75/50% at 32/64 blocks), and its base refresh interval is 6.
 
 **Other runtime notes**
 - Memory: the voxel world uses about 64 KB per non-empty section in a fixed 512 MB heap

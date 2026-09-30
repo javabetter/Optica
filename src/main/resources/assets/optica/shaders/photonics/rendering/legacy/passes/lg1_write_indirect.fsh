@@ -23,10 +23,15 @@ void main() {
     vec3 sum = vec3(0.0f);
     float weight_sum = 0.0f;
 
-    // 5x5 edge-aware blur with a stride of 2 texels.
-    for (int y = -2; y <= 2; y++) {
-        for (int x = -2; x <= 2; x++) {
-            ivec2 p = frag_tex_coord + ivec2(x, y) * 2;
+    // 5x5 edge-aware blur with a stride of 2 texels; beyond 64 blocks a 3x3 one with a stride of 3
+    // (Optica LOD: far away GI detail is not visible, and this pass reads three textures per tap).
+    bool far = dot(frag_player_pos, frag_player_pos) > 64.0f * 64.0f;
+    int radius = far ? 1 : 2;
+    int stride = far ? 3 : 2;
+
+    for (int y = -radius; y <= radius; y++) {
+        for (int x = -radius; x <= radius; x++) {
+            ivec2 p = frag_tex_coord + ivec2(x, y) * stride;
 
             FragData other;
             frag_data_load(other, p);
@@ -36,7 +41,7 @@ void main() {
 
             float normal_weight = pow(max(dot(frag_data_geo_normal(other), frag_geo_normal), 0.0f), 16.0f);
             float plane_weight = exp(-abs(dot(frag_data_player_pos(other) - frag_player_pos, frag_geo_normal)) * 4.0f);
-            float weight = normal_weight * plane_weight * exp(-0.1f * float(x * x + y * y));
+            float weight = normal_weight * plane_weight * exp(-0.1f * float(x * x + y * y) * float(stride * stride) / 4.0f);
 
             sum += texelFetch(legacy_gi, p, 0).rgb * weight;
             weight_sum += weight;

@@ -17,6 +17,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.TextureFormat;
 import it.unimi.dsi.fastutil.Pair;
+import net.irisshaders.iris.Iris;
 import net.irisshaders.iris.gl.texture.TextureAccess;
 import net.irisshaders.iris.pbr.texture.PBRTextureHolder;
 import net.irisshaders.iris.pbr.texture.PBRTextureManager;
@@ -27,6 +28,7 @@ import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.resources.Identifier;
 import org.jetbrains.annotations.Nullable;
 
+import java.lang.ref.SoftReference;
 import java.nio.IntBuffer;
 import java.util.HashMap;
 import java.util.Map;
@@ -38,6 +40,15 @@ public class AtlasDownloaderImpl implements AtlasDownloader, Runnable {
     //TODO Replace with ITextureFormat
     private final Map<TextureFormat, CpuTexture.Factory> textureFormats = new HashMap<>();
     private final ConcurrentHashMap<Id, CompletableFuture<AtlasTexture>> cache = new ConcurrentHashMap<>();
+
+    // Optica: downloaded atlases are shared between pipelines, so a dimension change or shader reload does
+    // not read the whole block atlas (and its PBR maps) back from the GPU again, which for large modpacks
+    // takes seconds and hundreds of MB. Soft references let the GC drop them under memory pressure.
+    private static final Map<String, SoftReference<CompletableFuture<AtlasTexture>>> SHARED_CACHE = new ConcurrentHashMap<>();
+
+    static {
+        ResourceReloaderListener.add(SHARED_CACHE::clear);
+    }
 
     private final TextureManager textureManager = Minecraft.getInstance().getTextureManager();
 
@@ -52,7 +63,27 @@ public class AtlasDownloaderImpl implements AtlasDownloader, Runnable {
     }
 
     private CompletableFuture<AtlasTexture> downloadTexture(Id atlasId) {
-        return cache.computeIfAbsent(atlasId, (id) ->
+        return cache.computeIfAbsent(atlasId, this::sharedDownload);
+    }
+
+    private CompletableFuture<AtlasTexture> sharedDownload(Id atlasId) {
+        String key = Iris.getIrisConfig().getShaderPackName().orElse("") + "|" + atlasId;
+
+        var reference = SHARED_CACHE.get(key);
+        var shared = reference != null ? reference.get() : null;
+        if (shared != null && !shared.isCompletedExceptionally()) return shared;
+
+        var download = startDownload(atlasId);
+        SHARED_CACHE.put(key, new SoftReference<>(download));
+        download.whenComplete((result, error) -> {
+            if (error != null) SHARED_CACHE.remove(key);
+        });
+
+        return download;
+    }
+
+    private CompletableFuture<AtlasTexture> startDownload(Id atlasId) {
+        return CompletableFuture.completedFuture(atlasId).thenCompose((id) ->
                 getTextureAtlas(id)
                         .thenCompose(this::getTextureData)
                         .thenCompose(this::getPbrTextures)

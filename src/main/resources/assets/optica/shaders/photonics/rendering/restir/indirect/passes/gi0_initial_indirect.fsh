@@ -11,6 +11,18 @@ void main() {
     setup_frag_data(0);
     if (!frag_is_in_world) discard;
 
+    // Optica: level of detail by distance. Far pixels trace a GI path every 2nd/4th frame (interleaved);
+    // on the other frames they contribute no new sample and temporal reuse (gi1) carries the history.
+    float distance = length(frag_player_pos);
+    int interval = distance < 48.0f ? 1 : distance < 96.0f ? 2 : 4;
+    ivec2 pixel = ivec2(gl_FragCoord.xy);
+    int phase = (pixel.x & 1) | ((pixel.y & 1) << 1);
+
+    if (!frag_is_hand && ((frameCounter + phase) % interval) != 0) {
+        indirect_reservoir_encode(indirect_reservoir_empty(), gi_reservoir_0, gi_reservoir_1);
+        return;
+    }
+
     vec3 indirect_result = vec3(0.0f);
     vec3 hit_normal;
     vec3 hit_position;

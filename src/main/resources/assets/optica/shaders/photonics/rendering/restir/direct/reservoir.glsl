@@ -85,7 +85,7 @@ void direct_reservoir_validate_visiblity(inout DirectReservoir reservoir, vec3 s
     vec3 unused0;
     float unused1;
 
-    if (!trace_light_vis(sample_pos, to_light, light.position, 40, unused0, unused1))
+    if (!trace_light_vis(sample_pos, to_light, light.position, 100, unused0, unused1))
         reservoir.weight = 0.0f;
 }
 
@@ -119,7 +119,7 @@ vec3 direct_reservoir_get_final_color(
     vec3 tint_color;
     float light_transmittance;
 
-    if (!trace_light_vis(sample_pos, to_light, light.position, 40, tint_color, light_transmittance)) {
+    if (!trace_light_vis(sample_pos, to_light, light.position, 100, tint_color, light_transmittance)) {
         reservoir.weight = 0.0f;
         visiblity = 0.0f;
 

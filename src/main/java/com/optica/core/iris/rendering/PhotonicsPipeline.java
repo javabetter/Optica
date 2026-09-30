@@ -66,7 +66,9 @@ public abstract class PhotonicsPipeline extends AbstractRenderingComponent {
                 new BufferLightList(
                         sectionManager,
                         properties.getLightListProperties().getSize(),
-                        worldCompiler::origin
+                        worldCompiler::origin,
+                        // ReSTIR sums every light, BASIC only the brightest few per fragment
+                        properties.getRenderer() == PhotonicsRenderer.RESTIR ? 1.0f : 0.5f
                 )
         );
     }

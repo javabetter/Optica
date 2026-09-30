@@ -27,6 +27,9 @@ public final class BlockLightInfo implements Comparable<BlockLightInfo> {
     private final float falloff;
     private final boolean isTraced;
     private final boolean requestedTrace;
+    // Optica: the constant term of the attenuation (0.9 for a single block). Merged light clusters use a
+    // larger value, which spreads their combined brightness like an area light instead of a hot spot.
+    private final float attenuationConstant;
 
     private final float adjustedIntensity;
     private final float luminanceDotColor;
@@ -42,6 +45,19 @@ public final class BlockLightInfo implements Comparable<BlockLightInfo> {
             boolean isTraced,
             boolean requestedTrace
     ) {
+        this(predicate, color, intensity, radius, falloff, isTraced, requestedTrace, 0.9f);
+    }
+
+    private BlockLightInfo(
+            @NonNls LightPredicate predicate,
+            @NonNls LightColor color,
+            float intensity,
+            float radius,
+            float falloff,
+            boolean isTraced,
+            boolean requestedTrace,
+            float attenuationConstant
+    ) {
         Objects.requireNonNull(predicate, "predicate was null");
         Objects.requireNonNull(color, "color was null");
 
@@ -52,13 +68,14 @@ public final class BlockLightInfo implements Comparable<BlockLightInfo> {
         this.falloff = falloff;
         this.isTraced = isTraced;
         this.requestedTrace = requestedTrace;
+        this.attenuationConstant = attenuationConstant;
 
         this.adjustedIntensity = intensity / 100f;
         this.luminanceDotColor = getColorAsVector().dot(LUMINANCE_COEF);
         this.radiusRcp = 1 / radius;
 
         //0.001 is the minimum amount of light
-        this.blockRadius = getBlockRadius(getColorAsVector(), new Vector2f(0.9f,radiusRcp), falloff);
+        this.blockRadius = getBlockRadius(getColorAsVector(), new Vector2f(attenuationConstant, radiusRcp), falloff);
     }
 
     public IBlock block() {
@@ -98,7 +115,7 @@ public final class BlockLightInfo implements Comparable<BlockLightInfo> {
         var result = samplePosition.sub(lightPosition, new Vector3d());
         float distanceSquared = (float) (result.dot(result) * falloff);
 
-        return this.luminanceDotColor / (0.9f + distanceSquared * radiusRcp);
+        return this.luminanceDotColor / (attenuationConstant + distanceSquared * radiusRcp);
     }
 
     public Vector3f getColorAsVector() {
@@ -106,7 +123,25 @@ public final class BlockLightInfo implements Comparable<BlockLightInfo> {
     }
 
     public Vector2f getAttenuationAsVector() {
-        return new Vector2f(0.9f, radiusRcp);
+        return new Vector2f(attenuationConstant, radiusRcp);
+    }
+
+    /**
+     * Optica: several blocks of this type merged into one light that is {@code gain} times as bright, whose
+     * members lie on average {@code sqrt(meanSquaredSpread)} blocks from the merged light's position. The
+     * spread softens it close up, like an area light.
+     */
+    public BlockLightInfo clustered(float gain, float meanSquaredSpread) {
+        return new BlockLightInfo(
+                predicate,
+                color,
+                intensity * gain,
+                radius,
+                falloff,
+                isTraced,
+                requestedTrace,
+                attenuationConstant + meanSquaredSpread * falloff * radiusRcp
+        );
     }
 
     public Vector4f[] toVector4Array(Vector3f position, int blockId) {
@@ -143,6 +178,7 @@ public final class BlockLightInfo implements Comparable<BlockLightInfo> {
                 Float.compare(falloff, other.falloff) == 0
                 && isTraced == other.isTraced
                 && requestedTrace == other.requestedTrace
+                && Float.compare(attenuationConstant, other.attenuationConstant) == 0
                 && color.equals(other.color);
     }
 
@@ -155,6 +191,7 @@ public final class BlockLightInfo implements Comparable<BlockLightInfo> {
         result = 31 * result + Float.hashCode(falloff);
         result = 31 * result + Boolean.hashCode(isTraced);
         result = 31 * result + Boolean.hashCode(requestedTrace);
+        result = 31 * result + Float.hashCode(attenuationConstant);
 
         return result;
     }

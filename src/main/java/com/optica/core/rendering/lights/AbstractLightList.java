@@ -62,12 +62,17 @@ public abstract class AbstractLightList implements Runnable, RenderingComponent 
     protected LightList mostRecentLights;
 
     @SuppressWarnings("UnstableApiUsage")
+    // Optica: see LightClusterer.cluster
+    private final float clusterGainExponent;
+
     public AbstractLightList(
             SectionManager sectionManager,
             int maxLights,
-            Supplier<WorldOrigin> worldOriginSupplier
+            Supplier<WorldOrigin> worldOriginSupplier,
+            float clusterGainExponent
     ) {
         this.maxLights = maxLights;
+        this.clusterGainExponent = clusterGainExponent;
         this.worldOriginSupplier = worldOriginSupplier;
 
         this.sectionQueue = sectionManager.newSectionQueue(true);
@@ -241,7 +246,12 @@ public abstract class AbstractLightList implements Runnable, RenderingComponent 
     }
 
     private LightList trimLights() {
-        var loadedLights = tracedLightPositions.values().toArray(TracedLightPosition[]::new);
+        var loadedLights = LightClusterer.cluster(
+                tracedLightPositions.values().toArray(TracedLightPosition[]::new),
+                Minecraft.getCameraPos(),
+                clusterGainExponent,
+                maxLights
+        );
         if (loadedLights.length < maxLights) {
             return new LightList(loadedLights, WorldOrigin.get());
         }
