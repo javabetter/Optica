@@ -385,6 +385,24 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   skipped beyond 48 blocks, and GI paths are traced every 1/2/4 frames (48/96 blocks). BASIC's LOD
   boundaries were pushed out (samples 100/75/50% at 32/64 blocks), and its base refresh interval is 6.
 
+**Cached lighting mode**
+- Selected in `config/optica.properties` (`OpticaSettings`), which overrides the pack's
+  `photonics.lightingMode` with `CACHED` and passes its settings on as `optica.*` keys
+  (`CachedProperties` turns them into `PH_CACHE_*` defines).
+- World-space surface cache (`rendering/cached`). Samples sit on a lattice over axis-aligned face
+  planes (planes in 1/16 steps; N x N cells per block, N = `cacheDetail` near the camera, halving
+  at 16/40/96 blocks). Non-axis-aligned surfaces and the hand use one coarse sample per block. Each
+  pixel interpolates four samples. The GPU hash table has 8-slot linear probing and 32-byte entries
+  (key, last-used frame, flags, half-float direct and GI). Entries unused for 900 frames get
+  replaced.
+- Passes: c0 finds or creates the pixel's samples (new ones go into a queue); c1 (fixed 512x192)
+  computes queued samples, then a rotating slice of the table sized so everything recently visible
+  is refreshed once per `cacheRefreshSeconds`; c2 interpolates into `sharp_direct`; c3 feeds
+  `write_indirect()`. The direct light is BASIC's top-`PH_MAX_SAMPLES` light selection with shadow
+  rays. GI is `sample_indirect`, averaged over up to 8 refreshes.
+- Verified in the dev client with EP: same average brightness as BASIC in a test scene (30.4 vs
+  29.9), and a newly placed light appears after its refresh.
+
 **Other runtime notes**
 - Memory: the voxel world uses about 64 KB per non-empty section in a fixed 512 MB heap
   (`BufferWorldAllocator(1 << 29)`, unchanged from Photonics). Render distance 6 levels off at

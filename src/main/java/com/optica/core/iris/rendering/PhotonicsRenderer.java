@@ -5,6 +5,8 @@ package com.optica.core.iris.rendering;
 import com.optica.core.iris.pipeline.IrisPipeline;
 import com.optica.core.iris.properties.PhotonicsProperties;
 import com.optica.core.iris.properties.impl.PropertiesManager;
+import com.optica.core.iris.rendering.cached.CachedPipeline;
+import com.optica.core.iris.rendering.cached.CachedProperties;
 import com.optica.core.iris.rendering.off.OffPipeline;
 import com.optica.core.iris.rendering.off.OffProperties;
 import com.optica.core.iris.rendering.restir.RestirPipeline;
@@ -21,7 +23,9 @@ public enum PhotonicsRenderer {
     OFF(OffProperties.class, OffPipeline::new),
     BASIC(SharpProperties.class, SharpPipeline::new),
     SHARP(SharpProperties.class, SharpPipeline::new),
-    RESTIR(RestirProperties.class, RestirPipeline::new);
+    RESTIR(RestirProperties.class, RestirPipeline::new),
+    // Optica: selected through config/optica.properties (see OpticaSettings), not by shader packs.
+    CACHED(CachedProperties.class, CachedPipeline::new);
 
     private final String key = makeKey(name());
     private final Class<?> propertiesType;

@@ -3,6 +3,7 @@
 package com.optica.core.iris;
 
 import com.optica.core.Photonics;
+import com.optica.core.config.OpticaSettings;
 import com.optica.core.iris.patching.ShaderPatcher;
 import com.optica.core.iris.pipeline.DefineHolder;
 import com.optica.core.iris.pipeline.IrisPipeline;
@@ -77,6 +78,10 @@ public class IrisManager {
         // read the pack). Parsing properties must never tear down the running pipeline underneath Iris: a
         // real change of shader settings goes through an Iris reload, which destroys the pipelines (and
         // with them the Photonics pipeline) anyway. The new properties apply to the next pipeline.
+        // Optica: apply config/optica.properties (e.g. the cached lighting mode) on top of the pack's own
+        // properties. Re-read on every load, so a shader reload picks up changes to that file.
+        properties = OpticaSettings.load().applyTo(properties);
+
         if (activeProperties != null && properties.equals(activeRawProperties)) return;
         activeRawProperties = (Properties) properties.clone();
 
