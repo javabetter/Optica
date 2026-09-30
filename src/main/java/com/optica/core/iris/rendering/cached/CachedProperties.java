@@ -5,7 +5,7 @@ import com.optica.core.iris.properties.annotations.*;
 import com.optica.core.iris.properties.PropertyDefines;
 
 /**
- * Optica's cached lighting mode (selected in config/optica.properties, see OpticaSettings). The
+ * Optica's cached lighting mode (selected in the pack's settings menu, see OpticaSettings). The
  * optica.* keys are written into the pack's properties by OpticaSettings.applyTo.
  */
 public interface CachedProperties extends PropertyDefines {

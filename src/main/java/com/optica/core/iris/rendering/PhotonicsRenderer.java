@@ -24,7 +24,7 @@ public enum PhotonicsRenderer {
     BASIC(SharpProperties.class, SharpPipeline::new),
     SHARP(SharpProperties.class, SharpPipeline::new),
     RESTIR(RestirProperties.class, RestirPipeline::new),
-    // Optica: selected through config/optica.properties (see OpticaSettings), not by shader packs.
+    // Optica: selected on the Optica page of the pack's settings menu (see OpticaSettings), not by packs.
     CACHED(CachedProperties.class, CachedPipeline::new);
 
     private final String key = makeKey(name());

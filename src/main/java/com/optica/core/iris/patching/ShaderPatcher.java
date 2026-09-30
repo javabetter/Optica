@@ -69,9 +69,14 @@ public class ShaderPatcher {
         Path includedShaders = PHOTONICS_SHADERS_PATH
                 .resolve("photonics");
 
+        // Optica: the settings file adds Optica's options to the pack's settings menu; only for packs
+        // Optica runs with.
+        boolean addSettings = pack.ph$supportsPhotonics() || patch != null;
+
         try (Stream<Path> shaders = Files.walk(includedShaders)) {
             shaders.forEach(file -> {
                 if (Files.isDirectory(file)) return;
+                if (!addSettings && file.getFileName().toString().equals("optica_settings.glsl")) return;
 
                 var relativePath = includedShaders.relativize(file);
                 createdFiles.add(

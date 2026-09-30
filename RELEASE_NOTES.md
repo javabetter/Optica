@@ -6,7 +6,7 @@ This is the **full** build from `main`: the Photonics port with Optica's perform
 
 **New in 0.2.0: cached lighting mode**
 - A very low-cost lighting mode. Lighting is computed per block face and reused, refreshed in the background (every second by default), so the per-frame cost barely depends on how many lights are nearby.
-- Enable it with `lightingMode=cached` in `config/optica.properties`, then press R. Refresh time, detail, cache memory and GI rays are configurable there.
+- Enable it on the new **Optica** page in the shader pack's settings menu (Shader Packs > Shader Pack Settings, at the end of the main screen). Refresh time, detail, cache memory and GI rays are configurable there too.
 - Changes to lights and blocks appear after the refresh time, and entities do not cast raytraced shadows in this mode.
 
 **Included from 0.1.0**

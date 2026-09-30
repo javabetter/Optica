@@ -17,15 +17,14 @@ refreshed in the background, so the per-frame cost barely depends on how many li
 Changes to lights and blocks show up with a delay of up to the refresh time, and entities do not cast
 raytraced shadows.
 
-Enable it in `config/optica.properties` (created on first launch), then press R in game:
+Enable it in the shader pack's settings menu: Optica adds an **Optica** page at the end of the
+pack's main settings screen (Iris: Shader Packs > Shader Pack Settings), with these options:
 
-```properties
-lightingMode=cached        # pack (use the shader pack's mode) or cached
-cacheRefreshSeconds=1.0    # time to refresh all cached lighting once (0.1 - 30)
-cacheDetail=4              # samples per block face edge near the camera (1, 2, 4 or 8)
-cacheMemoryMb=64           # GPU memory for the cache (16 - 512)
-cacheGiSamples=2           # sky/GI rays per cache update (0 disables GI in this mode)
-```
+- **Lighting Mode**: Shader Pack (the pack's own BASIC or ReSTIR mode) or Cached.
+- **Cache Refresh Time**: time to recompute all cached lighting once (0.25 - 10 s).
+- **Cache Detail**: lighting samples per block edge near the camera (1, 2, 4 or 8).
+- **Cache Memory**: GPU memory for the cache (32 - 512 MB).
+- **Cache GI Rays**: sky/GI rays per cache update (Off disables GI in this mode).
 
 It works with Euphoria Patches set to either Photonics mode (BASIC is recommended).
 

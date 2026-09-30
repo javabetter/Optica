@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class IrisManager {
@@ -70,7 +71,11 @@ public class IrisManager {
         propertiesManager.setForceEnabled(!pack.ph$supportsPhotonics() && activePatcher.hasPatch() && patchEnabled);
     }
 
-    public static void setupProperties(@NonNls Properties properties, @NonNls Logger logger) {
+    /**
+     * @param options the pack's current option values (Optica's own settings are pack options, see
+     *                OpticaSettings); returns null for unknown options
+     */
+    public static void setupProperties(@NonNls Properties properties, @NonNls Logger logger, Function<String, String> options) {
         Objects.requireNonNull(properties, "properties");
         Objects.requireNonNull(logger, "logger");
 
@@ -78,9 +83,9 @@ public class IrisManager {
         // read the pack). Parsing properties must never tear down the running pipeline underneath Iris: a
         // real change of shader settings goes through an Iris reload, which destroys the pipelines (and
         // with them the Photonics pipeline) anyway. The new properties apply to the next pipeline.
-        // Optica: apply config/optica.properties (e.g. the cached lighting mode) on top of the pack's own
-        // properties. Re-read on every load, so a shader reload picks up changes to that file.
-        properties = OpticaSettings.load().applyTo(properties);
+        // Optica: apply Optica's settings (e.g. the cached lighting mode) on top of the pack's own
+        // properties. They are pack options, so changing one reloads the pack and lands here.
+        properties = new OpticaSettings(options).applyTo(properties);
 
         if (activeProperties != null && properties.equals(activeRawProperties)) return;
         activeRawProperties = (Properties) properties.clone();

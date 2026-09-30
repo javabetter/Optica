@@ -386,8 +386,13 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   boundaries were pushed out (samples 100/75/50% at 32/64 blocks), and its base refresh interval is 6.
 
 **Cached lighting mode**
-- Selected in `config/optica.properties` (`OpticaSettings`), which overrides the pack's
-  `photonics.lightingMode` with `CACHED` and passes its settings on as `optica.*` keys
+- Selected on the Optica page of the pack's Iris settings menu. `/photonics/optica_settings.glsl`
+  is a virtual pack file whose `#define ... // [...]` lines Iris discovers as pack options. It is
+  only added for packs Optica runs with. `ShaderPropertiesMixin` adds `screen.OPTICA`, links it
+  from the main `screen`, and registers sliders. Iris reads the layout from the *original*
+  (un-preprocessed) properties, so that copy is the one patched. `LanguageMapMixin` merges in the
+  labels. On load, `OpticaSettings` reads the option values, overrides the pack's
+  `photonics.lightingMode` with `CACHED`, and passes the settings on as `optica.*` keys
   (`CachedProperties` turns them into `PH_CACHE_*` defines).
 - World-space surface cache (`rendering/cached`). Samples sit on a lattice over axis-aligned face
   planes (planes in 1/16 steps; N x N cells per block, N = `cacheDetail` near the camera, halving
