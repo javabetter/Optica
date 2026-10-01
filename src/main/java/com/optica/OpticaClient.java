@@ -32,6 +32,6 @@ public final class OpticaClient implements ClientModInitializer {
 
         StallWatchdog.start();
 
-        LOGGER.info("Optica {} loaded (Photonics API {})", Photonics.getModVersion(), Photonics.getVersion());
+        LOGGER.info("Photonics Unofficial Port {} loaded (Photonics API {})", Photonics.getModVersion(), Photonics.getVersion());
     }
 }

@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "optica",
   "version": "${version}",
-  "name": "Optica",
-  "description": "A port of the Photonics voxel raytracing engine (an Iris extension) to Minecraft 26.1.2, with Euphoria Patches support.",
+  "name": "Photonics Unofficial Port",
+  "description": "An unofficial port of the Photonics voxel raytracing engine (an Iris extension) to Minecraft 26.1.2, with Euphoria Patches support. Not affiliated with the Photonics developers; report issues to this port, not to Photonics.",
   "authors": [
     "GamingLegend123"
   ],

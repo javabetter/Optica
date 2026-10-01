@@ -69,8 +69,8 @@ java {
 	targetCompatibility = JavaVersion.VERSION_25
 }
 
-// Release jar naming: "Optica v<mod_version> <minecraft_version>.jar".
-def releaseFileBaseName = "Optica v${project.mod_version} ${project.minecraft_version}"
+// Release jar naming: "Photonics Unofficial Port v<mod_version> <minecraft_version>.jar".
+def releaseFileBaseName = "Photonics Unofficial Port v${project.mod_version} ${project.minecraft_version}"
 tasks.withType(AbstractArchiveTask).configureEach { task ->
 	if (task.name == "jar" || task.name == "remapJar") {
 		task.archiveFileName.set("${releaseFileBaseName}.jar")
