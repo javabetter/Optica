@@ -169,7 +169,15 @@ void main() {
     vec3 normal;
     ph_cache_decode(key, world_pos, normal);
 
-    vec3 rt_pos = world_pos + normal * ph_cache_surface_offset - cameraPosition + rt_camera_position;
+    // Samples sit at exact fractions of a block, and so do lights (block centres). Whole rows of samples
+    // then cast their shadow rays exactly through the edge where two blocks touch diagonally (the steps
+    // of the End fountain's rim); the tracer settles such ties on one side, so light leaked through those
+    // edges as streaks, in two of the four diagonal directions. A tiny irregular in-plane offset moves
+    // every sample off those lines.
+    vec3 jitter = vec3(0.00137f, 0.00291f, 0.00213f);
+    jitter -= normal * dot(jitter, normal);
+
+    vec3 rt_pos = world_pos + jitter + normal * ph_cache_surface_offset - cameraPosition + rt_camera_position;
 
     vec3 direct = cache_direct_light(rt_pos, normal);
     vec3 indirect_sample = cache_indirect_light(rt_pos, normal, slot);
