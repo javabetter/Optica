@@ -121,5 +121,5 @@ void main() {
     float blend = 1.0f / min(float(gi_samples) + 1.0f, ph_cache_gi_history);
     vec3 indirect = mix(old_indirect, indirect_sample, blend);
 
-    ph_cache_store(slot, direct, indirect, gi_samples + 1u, computed);
+    ph_cache_store(slot, direct, indirect, gi_samples + 1u);
 }

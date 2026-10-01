@@ -9,6 +9,7 @@ import com.optica.core.rendering.lights.HandheldItemSupplier;
 import com.optica.core.rendering.world.bakery.texture.AtlasDownloader;
 
 import static com.optica.core.iris.pipeline.texture.AttachmentUsage.CREATE_SAMPLER;
+import static com.optica.core.iris.pipeline.texture.AttachmentUsage.FLIP;
 
 /**
  * Optica's cached lighting mode. Lighting (BASIC-style direct light and sky GI) is computed for points
@@ -18,7 +19,7 @@ import static com.optica.core.iris.pipeline.texture.AttachmentUsage.CREATE_SAMPL
  *   <li>c1 (fixed size): compute new entries, then refresh a slice of the table so every entry is
  *       recomputed once per {@code cacheRefreshSeconds}.</li>
  *   <li>c2 (per pixel): interpolate the cached lighting (into {@code sharp_direct}, so the pack reads it
- *       through the usual BASIC samplers).</li>
+ *       through the usual BASIC samplers), fill in what is missing, and blend with the previous frames.</li>
  *   <li>c3: hand the cached GI to the pack's {@code write_indirect()}.</li>
  * </ol>
  * The per-pixel passes only read memory, so the frame cost barely depends on the number of lights.
@@ -55,8 +56,8 @@ public class CachedPipeline extends PhotonicsPipeline {
                 .build(this::registerComponent);
 
         var resolved = irisPipeline.newFramebuffer(phProperties.getRenderScale())
-                .addAttachment("sharp_direct", ITextureFormat.rgba16f(), CREATE_SAMPLER)
-                .addAttachment("cached_indirect", ITextureFormat.rgba16f(), CREATE_SAMPLER)
+                .addAttachment("sharp_direct", ITextureFormat.rgba16f(), CREATE_SAMPLER | FLIP)
+                .addAttachment("cached_indirect", ITextureFormat.rgba16f(), CREATE_SAMPLER | FLIP)
                 .build(this::registerComponent);
 
         boolean writeIndirect = phProperties.getGiProperties().isEnabled()
@@ -71,6 +72,9 @@ public class CachedPipeline extends PhotonicsPipeline {
                 .withFramebuffer(update)
                 .deferredPass("cache update", "c1_update.fsh", null)
                 .withFramebuffer(resolved)
+                // Flip first: this frame writes sharp_direct (what the pack samples) while last frame's
+                // result stays readable as prev_sharp_direct for the history blend.
+                .thenFlip(resolved)
                 .deferredPass("cache resolve", "c2_resolve.fsh", null);
 
         if (writeIndirect) {

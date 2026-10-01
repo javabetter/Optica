@@ -5,9 +5,11 @@
 //
 // Lighting is stored for points on a lattice laid over block faces in world space. A face is identified
 // by its axis-aligned direction and its plane (in 1/16 block steps, so slabs and other partial blocks
-// get their own plane); on the plane, samples sit at cell centres of an N x N grid per block, where N
-// is PH_CACHE_DETAIL near the camera and halves with distance. A pixel interpolates the four samples
-// around it, so neighbouring faces on the same plane blend smoothly.
+// get their own plane); on the plane, samples sit at cell centres of an N x N grid per block. N follows
+// the size of a block on screen (about one sample per ph_cache_pixels_per_sample pixels), capped at
+// PH_CACHE_DETAIL, so the number of samples in view scales with the screen, not the render distance.
+// A pixel interpolates the four samples around it, so neighbouring faces on the same plane blend
+// smoothly.
 //
 // Surfaces that are not axis aligned (and the hand) use one coarse sample per block.
 //
@@ -17,6 +19,9 @@
 
 //ph_required: uniform vec3 cameraPosition;
 //ph_required: uniform int frameCounter;
+//ph_required: uniform float frameTime;
+//ph_required: uniform float viewHeight;
+//ph_required: uniform mat4 gbufferProjection;
 
 #ifndef PH_CACHE_CAPACITY_LOG2
 #define PH_CACHE_CAPACITY_LOG2 21
@@ -24,6 +29,10 @@
 
 #ifndef PH_CACHE_DETAIL
 #define PH_CACHE_DETAIL 4
+#endif
+
+#ifndef PH_CACHE_REFRESH_SECONDS
+#define PH_CACHE_REFRESH_SECONDS 1.0
 #endif
 
 const uint ph_cache_capacity = 1u << PH_CACHE_CAPACITY_LOG2;
@@ -39,18 +48,20 @@ const uint ph_cache_update_height = 192u;
 const int ph_cache_probe_length = 8;
 const uint ph_cache_none = 0xFFFFFFFFu;
 const uint ph_cache_computed_bit = 1u << 31;
+// Set while an entry waits in the queue for a refresh, so it is queued only once.
+const uint ph_cache_queued_bit = 1u << 30;
+// Target spacing of samples on screen. Lower is sharper but needs more samples.
+const float ph_cache_pixels_per_sample = 3.0f;
 
 // Iris wraps frameCounter at 720720.
 const uint ph_cache_frame_period = 720720u;
 // Entries not seen for this many frames may be replaced by new ones.
 const uint ph_cache_stale_frames = 900u;
-// Newly computed samples fade in over this many frames instead of popping in.
-const float ph_cache_fade_in_frames = 12.0f;
 
 // Entry layout (uints):
 //   0 key0, 1 key1 (0 = empty slot), 2 frame last used, 3 flags (computed bit | GI sample count),
 //   4 direct.rg (half), 5 direct.b | indirect.r (half), 6 indirect.gb (half),
-//   7 frame of the first computation (| computed bit; 0 = never computed), for the fade-in
+//   7 frame of the last computation (| computed bit; 0 = never computed)
 layout (std430) restrict buffer ph_surface_cache {
     uint ph_cache[];
 };
@@ -109,15 +120,20 @@ ivec2 ph_cache_plane_axes(int axis) {
     return ivec2((axis + 1) % 3, (axis + 2) % 3);
 }
 
-int ph_cache_level_for_distance(float distance) {
-    distance = ph_lod_distance(distance);
-    int n = PH_CACHE_DETAIL;
-    if (distance > 16.0f) n /= 2;
-    if (distance > 40.0f) n /= 2;
-    if (distance > 96.0f) n /= 2;
-    n = max(n, 1);
+// Lattice level (log2 of samples per block edge) for a surface seen at `distance`, where `facing` is the
+// cosine between the surface normal and the view direction. Samples are spaced about
+// ph_cache_pixels_per_sample pixels apart on screen (wider at grazing angles, where a pixel stretches
+// over more of the surface). LOD Quality below 1.0 lowers the detail further.
+int ph_cache_level_for_distance(float distance, float facing) {
+    // Size of one screen pixel in blocks at that distance (gbufferProjection[1][1] = 1 / tan(fov / 2)).
+    float pixel_size = 2.0f * distance / max(gbufferProjection[1][1] * viewHeight, 1.0f);
+    pixel_size /= max(facing, 0.3f);
 
-    return findMSB(n);
+    float samples_per_block = 1.0f / max(pixel_size * ph_cache_pixels_per_sample, 1e-4f);
+    samples_per_block *= clamp(float(PH_LOD_SCALE), 0.25f, 1.0f);
+
+    int level = int(floor(log2(max(samples_per_block, 1.0f))));
+    return clamp(level, 0, findMSB(PH_CACHE_DETAIL));
 }
 
 CacheSurface ph_cache_surface(vec3 world_pos, vec3 normal, float distance, bool force_coarse) {
@@ -135,7 +151,9 @@ CacheSurface ph_cache_surface(vec3 world_pos, vec3 normal, float distance, bool 
         surface.level = 0;
         surface.plane = int(floor(world_pos[surface.axis]));
     } else {
-        surface.level = ph_cache_level_for_distance(distance);
+        vec3 view = world_pos - cameraPosition;
+        float facing = abs(dot(normal, view)) / max(length(view), 1e-4f);
+        surface.level = ph_cache_level_for_distance(distance, facing);
         surface.plane = int(round(world_pos[surface.axis] * 16.0f));
     }
 
@@ -299,17 +317,35 @@ void ph_cache_load(uint slot, out vec3 direct, out vec3 indirect) {
     indirect = vec3(d_b_i_r.y, i_gb);
 }
 
-// How far a computed sample has faded in (0 - 1).
-float ph_cache_fade_in(uint slot) {
-    uint first = ph_cache[ph_cache_base(slot) + 7u];
-    if ((first & ph_cache_computed_bit) == 0u) return 0.0f;
+// True when a computed entry is older than twice the refresh time. Entries in view are refreshed by the
+// rotating update anyway; this catches the ones that were out of view (skipped) and are seen again.
+bool ph_cache_is_outdated(uint slot) {
+    uint last = ph_cache[ph_cache_base(slot) + 7u];
+    if ((last & ph_cache_computed_bit) == 0u) return false;
 
-    return clamp(float(ph_cache_age(first & ~ph_cache_computed_bit) + 1u) / ph_cache_fade_in_frames, 0.0f, 1.0f);
+    float max_frames = 2.0f * float(PH_CACHE_REFRESH_SECONDS) / max(frameTime, 0.001f);
+    return float(ph_cache_age(last & ~ph_cache_computed_bit)) > max_frames;
 }
 
-void ph_cache_store(uint slot, vec3 direct, vec3 indirect, uint gi_samples, bool was_computed) {
+// Queues an existing entry to be recomputed this frame (once, however many pixels ask).
+void ph_cache_request_refresh(uint slot) {
     uint base = ph_cache_base(slot);
-    if (!was_computed) ph_cache[base + 7u] = ph_cache_frame() | ph_cache_computed_bit;
+    uint parity = ph_cache_parity();
+    if (ph_cache_state[parity] >= ph_cache_queue_max) return;
+
+    uint flags = atomicOr(ph_cache[base + 3u], ph_cache_queued_bit);
+    if ((flags & ph_cache_queued_bit) != 0u) return;
+
+    uint index = atomicAdd(ph_cache_state[parity], 1u);
+    if (index < ph_cache_queue_max)
+        ph_cache_state[ph_cache_state_header + index] = slot;
+    else
+        atomicAnd(ph_cache[base + 3u], ~ph_cache_queued_bit);
+}
+
+void ph_cache_store(uint slot, vec3 direct, vec3 indirect, uint gi_samples) {
+    uint base = ph_cache_base(slot);
+    ph_cache[base + 7u] = ph_cache_frame() | ph_cache_computed_bit;
 
     ph_cache[base + 4u] = packHalf2x16(direct.rg);
     ph_cache[base + 5u] = packHalf2x16(vec2(direct.b, indirect.r));

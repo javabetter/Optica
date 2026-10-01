@@ -1,8 +1,8 @@
 #version 430
 
 // Optica cached lighting, pass 1 of 4: find (or create) the four cache samples around every pixel and
-// remember their slots for the resolve pass. New samples are queued and computed in the update pass
-// of this same frame.
+// remember their slots for the resolve pass. New samples, and old ones seen again after a while out of
+// view, are queued and computed in the update pass of this same frame.
 
 #include "/photonics/rendering/frag/common.glsl"
 #include "/photonics/rendering/cached/surface.glsl"
@@ -25,6 +25,12 @@ void main() {
         // Corners with no weight (the pixel sits exactly on a sample row) need no sample.
         if (weights[i] <= 0.0f) continue;
 
-        cache_slots_out[i] = ph_cache_acquire(ph_cache_key(surface, cells[i]));
+        uint slot = ph_cache_acquire(ph_cache_key(surface, cells[i]));
+        cache_slots_out[i] = slot;
+
+        // Seen again after being out of view: recompute now rather than whenever the rotating
+        // update gets to it.
+        if (slot != ph_cache_none && ph_cache_is_outdated(slot))
+            ph_cache_request_refresh(slot);
     }
 }

@@ -199,7 +199,7 @@ public final class OpticaSettings {
 
         t.put("option." + CACHE_DETAIL, "Cache Detail");
         t.put("option." + CACHE_DETAIL + ".comment",
-                "Lighting samples per block edge near the camera (4 = quarter-block shadows). Detail drops with distance (see LOD Quality).");
+                "Most lighting samples per block edge, used up close (4 = quarter-block shadows). Further away, detail follows how big blocks are on screen.");
 
         t.put("option." + CACHE_MEMORY, "Cache Memory");
         t.put("option." + CACHE_MEMORY + ".comment",

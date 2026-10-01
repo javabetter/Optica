@@ -3,23 +3,76 @@
 // Optica cached lighting, pass 3 of 4: interpolate the cached samples around every pixel. Direct light
 // goes to sharp_direct (read by the pack through the BASIC samplers), GI to cached_indirect.
 //
-// Samples fade in over a few frames once computed. Until a pixel's samples are all there (joining a
-// world, newly revealed surfaces), the missing share is filled with live BASIC-style lighting from the
-// brightest few lights, so lighting is present from the first frame and blends into the cached result
-// instead of appearing block by block.
+// Until a pixel's samples are computed (joining a world, newly revealed surfaces), the missing share is
+// filled with live BASIC-style lighting from the brightest few lights, so lighting is present from the
+// first frame. The result is then blended with the reprojected result of earlier frames, which smooths
+// out the steps when samples are computed, refreshed or change detail with distance.
 
 #include "/photonics/rendering/frag/common.glsl"
+#include "/photonics/utility/projection.glsl"
 #include "/photonics/rendering/cached/surface.glsl"
 #include "/photonics/rendering/cached/direct.glsl"
 
 // Lights evaluated (with shadow rays) for the stand-in lighting. It only runs where samples are
 // missing, so it costs nothing once the cache has filled.
 const int ph_cache_fallback_lights = 4;
+// Share of this frame's result in the output; the rest is history. About 6 frames to settle.
+const float ph_cache_history_blend = 0.3f;
 
 uniform usampler2D cache_slots;
+uniform sampler2D prev_sharp_direct;
+uniform sampler2D prev_cached_indirect;
 
 layout(location = 0) out vec4 sharp_direct_out;
 layout(location = 1) out vec4 cached_indirect_out;
+
+// Reprojects last frame's output. Returns false when no neighbouring texel is the same surface.
+bool load_history(out vec3 direct, out vec3 indirect) {
+    direct = vec3(0.0f);
+    indirect = vec3(0.0f);
+
+    vec3 center = ph_reproject_player_pos(frag_player_pos, frag_is_hand, get_taa_jitter());
+    if (any(lessThan(center.xy, vec2(0.0f))) || any(greaterThan(center.xy, vec2(1.0f)))) return false;
+    center.xy = center.xy * PH_VIEW_SIZE - 0.5f;
+
+    ivec2 texel = ivec2(floor(center.xy));
+    vec2 mix_factors = fract(center.xy);
+
+    const ivec2[4] offsets = ivec2[](ivec2(0, 0), ivec2(1, 0), ivec2(0, 1), ivec2(1, 1));
+    const vec2[4] weights = vec2[](vec2(1.0f, 1.0f), vec2(0.0f, 1.0f), vec2(1.0f, 0.0f), vec2(0.0f, 0.0f));
+
+    float weight_sum = 0.0f;
+
+    for (int i = 0; i < 4; i++) {
+        ivec2 p = texel + offsets[i];
+
+        FragData prev_frag;
+        frag_data_load_previous(prev_frag, p);
+        if (!frag_data_is_in_world(prev_frag)) continue;
+        if (frag_data_is_hand(prev_frag) != frag_is_hand) continue;
+
+        if (dot(frag_data_geo_normal(prev_frag), frag_geo_normal) < 0.99f) continue;
+
+        vec3 dist = frag_player_pos - frag_data_player_pos(prev_frag);
+        if (abs(dot(dist, frag_geo_normal)) > 0.1f) continue;
+
+        vec4 prev = texelFetch(prev_sharp_direct, p, 0);
+        if (prev.a <= 0.0f) continue;
+
+        vec2 mix_weights = abs(weights[i] - mix_factors);
+        float weight = mix_weights.x * mix_weights.y + 0.0001f;
+
+        direct += prev.rgb * weight;
+        indirect += texelFetch(prev_cached_indirect, p, 0).rgb * weight;
+        weight_sum += weight;
+    }
+
+    if (weight_sum <= 0.0f) return false;
+
+    direct /= weight_sum;
+    indirect /= weight_sum;
+    return true;
+}
 
 void main() {
     sharp_direct_out = vec4(0.0f);
@@ -47,16 +100,13 @@ void main() {
         if (!ph_cache_matches(slots[i], ph_cache_key(surface, cells[i]))) continue;
         if (!ph_cache_is_computed(slots[i])) continue;
 
-        float weight = weights[i] * ph_cache_fade_in(slots[i]);
-        if (weight <= 0.0f) continue;
-
         vec3 sample_direct;
         vec3 sample_indirect;
         ph_cache_load(slots[i], sample_direct, sample_indirect);
 
-        direct += sample_direct * weight;
-        indirect += sample_indirect * weight;
-        weight_sum += weight;
+        direct += sample_direct * weights[i];
+        indirect += sample_indirect * weights[i];
+        weight_sum += weights[i];
     }
 
     // The corner weights add up to 1, so weight_sum is the share of the pixel the cache covers.
@@ -76,10 +126,22 @@ void main() {
         indirect *= coverage;
     }
 
+    // The hand moves with the camera; its lighting is a single coarse sample and needs no smoothing.
+    vec3 history_direct;
+    vec3 history_indirect;
+    if (!frag_is_hand && load_history(history_direct, history_indirect)) {
 #if defined PH_CACHE_COMBINED_GI
-    direct += indirect;
+        history_direct = max(history_direct - history_indirect, vec3(0.0f));
 #endif
+        direct = mix(history_direct, direct, ph_cache_history_blend);
+        indirect = mix(history_indirect, indirect, ph_cache_history_blend);
+    }
 
+#if defined PH_CACHE_COMBINED_GI
+    // Combined GI is added to the direct light only on output, so the history keeps them apart.
+    sharp_direct_out = vec4(direct + indirect, 1.0f);
+#else
     sharp_direct_out = vec4(direct, 1.0f);
+#endif
     cached_indirect_out = vec4(indirect, 1.0f);
 }
