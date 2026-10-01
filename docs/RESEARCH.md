@@ -460,3 +460,23 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
 - Verified by shrinking the queue to 2048: the old code showed dark block patches for several frames
   after entering the End; the new code is fully lit from the first frame.
 
+**Lighting cache: screen-space detail (fixes slow/missing/striped lighting)**
+- Regression: the cache took its lattice level from the LOD distances, so with LOD Quality at its new
+  default (off) every surface used `PH_CACHE_DETAIL` samples per block edge at any distance. At 1080p
+  that is millions of samples: the table thrashed, the queue was full every frame (pixels that missed
+  it got the 4-light stand-in, in raster order, hence horizontal stripes), and lights loaded slowly.
+- Level is now `floor(log2(1 / (pixel_size * 3)))`, capped at `PH_CACHE_DETAIL`, where `pixel_size` =
+  `2 * distance / (gbufferProjection[1][1] * viewHeight) / max(facing, 0.3)`. LOD Quality below 1.0
+  scales it down further. Samples in view now scale with the screen, not the render distance.
+- Entry uint 7 now holds the frame of the last computation. c0 queues an entry for an immediate
+  refresh when it is older than twice the refresh time (it was out of view and skipped by the
+  rotating update); a queued bit in the flags keeps it to one queue slot.
+- c2 blends with the reprojected previous output (30% new; plane and normal checks as in BASIC),
+  replacing the per-sample fade-in. `sharp_direct` and `cached_indirect` are flipped before c2.
+- The software renderer could not reproduce the stripes (too few pixels per frame); verified that the
+  new code compiles and renders without patches at 1280x720.
+
+**Foliage sun shadows (reported)**
+- Player shadows from the sun not lining up on grass/tall grass: identical with EP's Photonics lighting
+  turned off, so it is Euphoria Patches' own foliage shadowing, not Optica.
+
