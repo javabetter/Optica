@@ -1,28 +1,27 @@
 # Optica
 
-> Photonics is free and open-source software, and can be downloaded from https://modrinth.com/mod/photonics (Modrinth), or https://github.com/Redi2Go/PhotonicEngine (GitHub). Anyone can modify and distribute it under the terms of the GNU Lesser General Public License, version 3.
+> Photonics is free and open-source software, and can be downloaded from https://modrinth.com/mod/photonics.
 
-Optica is a port of the Photonics voxel raytracing engine (an Iris extension) to Minecraft 26.1.2
-on Fabric, with Euphoria Patches compatibility. See `NOTICE.md` for credits.
+Optica is a port of the Photonics to Minecraft 26.1.2 on Fabric.
+Optica also has various performance improving options, including baked lighting.
+See `NOTICE.md` for credits.
 
 ## Requirements
 
-Minecraft 26.1.2 with Fabric Loader, Fabric API, Iris 1.11.3+ and Sodium 0.9.1+ (Sodium 0.9.1 works
-with Voxy). Optica replaces Photonics; do not install both.
+Minecraft 26.1.2 with Fabric Loader, Fabric API, Iris 1.11.3+ and Sodium 0.9.1+
+
+__Optica replaces Photonics; do not install both.__
 
 ## Cached lighting mode (main branch)
 
-A third lighting mode for low-end GPUs. Lighting is computed per block face in the world and reused,
-refreshed in the background, so the per-frame cost barely depends on how many lights are around.
+A toggleable lighting performance-boosting mode for lower-end GPUs. Lighting is computed per block face in the world and reused. It is then refreshed in the background, so the per-frame cost barely depends on how many lights are around.
 Changes to lights and blocks show up with a delay of up to the refresh time, and entities do not cast
-raytraced shadows. It works with Euphoria Patches set to either Photonics mode (Sharp/BASIC is
-recommended).
+raytraced shadows. It works with Photonics-compatible shaders.
 
 ## Settings (main branch)
 
 Optica's settings are shader pack options. With Euphoria Patches they are at the bottom of the pack's
-Photonics page (Shader Packs > Shader Pack Settings > Configure Euphoria Patches > Modded Settings >
-Photonics). Packs without a Photonics page get an **Optica** page at the end of their main settings
+Photonics page. Packs without a Photonics page get an **Optica** page at the end of their main settings
 screen instead.
 
 - **Lighting Cache**: Off, or On for the cached lighting mode (replaces the pack's lighting mode).
