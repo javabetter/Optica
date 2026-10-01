@@ -67,7 +67,7 @@ void main() {
     // further away (interleaved over a 4x4 tile); in between the accumulated history is reused. Pixels
     // with little history (just revealed) always trace.
     float distance = ph_lod_distance(frag_player_pos);
-    int interval = distance < 48.0f ? 2 : distance < 96.0f ? 4 : 8;
+    int interval = !ph_lod_enabled ? 1 : distance < 48.0f ? 2 : distance < 96.0f ? 4 : 8;
     ivec2 pixel = ivec2(gl_FragCoord.xy);
     int phase = (pixel.x & 3) | ((pixel.y & 3) << 2);
 

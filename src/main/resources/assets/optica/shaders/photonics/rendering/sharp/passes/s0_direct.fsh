@@ -26,7 +26,7 @@
 #define PH_SHARP_SHADOW_ITERATIONS 64
 
 #ifndef PH_SHARP_REFRESH_INTERVAL
-#define PH_SHARP_REFRESH_INTERVAL 6
+#define PH_SHARP_REFRESH_INTERVAL 1
 #endif
 
 uniform sampler2D prev_sharp_direct;

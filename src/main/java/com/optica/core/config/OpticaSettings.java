@@ -69,9 +69,9 @@ public final class OpticaSettings {
         cacheDetail = Integer.highestOneBit(clamp(parseInt(options.apply(CACHE_DETAIL), 4), 1, 8));
         cacheMemoryMb = clamp(parseInt(options.apply(CACHE_MEMORY), 64), 16, 512);
         cacheGiSamples = clamp(parseInt(options.apply(CACHE_GI_SAMPLES), 2), 0, 8);
-        lodQuality = clamp(parseFloat(options.apply(LOD_QUALITY), 0.5f), 0.1f, 1.0f);
-        lightMerging = clamp(parseInt(options.apply(LIGHT_MERGING), 2), 0, 4);
-        shadowUpdateInterval = clamp(parseInt(options.apply(SHADOW_UPDATE), 6), 1, 16);
+        lodQuality = clamp(parseFloat(options.apply(LOD_QUALITY), 1.0f), 0.1f, 1.0f);
+        lightMerging = clamp(parseInt(options.apply(LIGHT_MERGING), 0), 0, 4);
+        shadowUpdateInterval = clamp(parseInt(options.apply(SHADOW_UPDATE), 1), 1, 16);
     }
 
     /**
@@ -160,8 +160,9 @@ public final class OpticaSettings {
     }
 
     /**
-     * The LOD Quality setting as a multiplier of the level of detail distances: 0.5 is Optica's default
-     * (1x), each 0.1 step multiplies them by about 1.3, and 1.0 turns the level of detail off.
+     * The LOD Quality setting as a multiplier of the level of detail distances: 0.5 gives the distances
+     * Optica's LOD was tuned with (1x), each 0.1 step multiplies them by about 1.3, and 1.0 (the default)
+     * turns the level of detail off.
      */
     private float lodScale() {
         if (lodQuality >= 0.999f) return 1000.0f;

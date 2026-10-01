@@ -1,13 +1,11 @@
 name: Release
 
-# Every push to main or photonics-port builds the mod and publishes (or updates) the GitHub release
-# for the version in gradle.properties, creating its tag on the pushed commit (v<mod_version> on main,
-# photonics-v<mod_version> on photonics-port, so the two release lines never share a tag).
+# Every push to main builds the mod and publishes (or updates) the GitHub release for the version in
+# gradle.properties, creating its tag (v<mod_version>) on the pushed commit.
 on:
   push:
     branches:
       - main
-      - photonics-port
   workflow_dispatch:
 
 permissions:
@@ -31,22 +29,14 @@ jobs:
 
       - name: Read version
         id: version
-        run: |
-          echo "version=$(grep '^mod_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
-          if [ "$GITHUB_REF_NAME" = "photonics-port" ]; then
-            echo "tag_prefix=photonics-v" >> "$GITHUB_OUTPUT"
-            echo "name_prefix=Photonics Unofficial Port v" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag_prefix=v" >> "$GITHUB_OUTPUT"
-            echo "name_prefix=Optica v" >> "$GITHUB_OUTPUT"
-          fi
+        run: echo "version=$(grep '^mod_version=' gradle.properties | cut -d= -f2)" >> "$GITHUB_OUTPUT"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag_prefix }}${{ steps.version.outputs.version }}
+          tag_name: v${{ steps.version.outputs.version }}
           target_commitish: ${{ github.sha }}
-          name: ${{ steps.version.outputs.name_prefix }}${{ steps.version.outputs.version }}
+          name: Optica v${{ steps.version.outputs.version }}
           body_path: RELEASE_NOTES.md
-          make_latest: ${{ github.ref_name == 'main' }}
+          make_latest: true
           files: build/libs/*.jar

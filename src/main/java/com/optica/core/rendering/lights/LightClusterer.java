@@ -29,7 +29,7 @@ final class LightClusterer {
     /** Coarsening passes when the merged list still exceeds the light budget. */
     private static final int MAX_PASSES = 3;
 
-    /** Cell edge length in blocks for a light at the given distance from the camera (default level). */
+    /** Cell edge length in blocks for a light at the given distance from the camera (Medium level). */
     static int cellSize(double distance) {
         if (distance < 8) return 2;
         if (distance < 24) return 4;
@@ -76,8 +76,8 @@ final class LightClusterer {
             var pos = light.pos();
             int baseCellSize = cellSize(pos.distance(camera) / merging.lodScale());
 
-            // Merging levels below and above the default halve or double the cells.
-            int cellSize = Math.max(1, (baseCellSize << merging.level()) >> LightMerging.DEFAULT_LEVEL) * scale;
+            // Merging levels below and above Medium halve or double the cells.
+            int cellSize = Math.max(1, (baseCellSize << merging.level()) >> LightMerging.BASE_LEVEL) * scale;
             // Lava lakes are large, flat and evenly lit: merge them one level coarser.
             if (light.blockState().ph$is(BLOCK_LAVA)) cellSize *= 2;
             cellSize = Math.min(cellSize, MAX_CELL_SIZE);

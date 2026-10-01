@@ -23,7 +23,9 @@ Photonics-equivalent voxel raytracing engine for Minecraft **26.1.2** (Fabric), 
   > Photonics is free and open-source software, and can be downloaded from https://modrinth.com/mod/photonics (Modrinth), or https://github.com/Redi2Go/PhotonicEngine (GitHub). Anyone can modify and distribute it under the terms of the GNU Lesser General Public License, version 3.
 - ⚠️ Conflict: the branch's `fabric.mod.json` still says `"license": "All-Rights-Reserved"`. The
   LICENSE file normally wins, but ask the authors (Photonics Discord or a GitHub issue) before
-  publishing a fork.
+  publishing a fork. Resolved (2026-10-01): a Photonics co-developer confirmed that 0.4 is LGPLv3;
+  the `fabric.mod.json` field is a leftover. The Discord 0.4.0 alpha jar (1.21.11) carries the same
+  field and is a build of upstream `e01e408`, three days older than Optica's base.
 
 ### Decision (2026-09-26): port Photonics, relicense Optica to LGPL-3.0-only
 The user chose option A, porting Photonics. The repo now has `LICENSE.md` (LGPL-3.0),
@@ -437,3 +439,9 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   vertical edges where the stepped rim blocks touch diagonally. The tracer settles exact ties on one
   side, so those rays leaked in two diagonal directions (SE and NW), giving bright streaks that
   bilinear interpolation widened. c1 now offsets samples by a tiny irregular in-plane amount.
+
+**Single release, optimizations off by default (0.3.0)**
+- The `photonics-port` branch and its releases are discontinued; Optica with every option off is the
+  port. Defaults: Lighting Cache off, LOD Quality 1.0 (`PH_LOD_SCALE` 1000, `ph_lod_enabled` false,
+  so legacy GI also traces every frame), Light Merging 0, Shadow Update Interval 1 (BASIC traces every
+  pixel every frame, no history reuse). The block atlas cache stays on; it has no visual cost.

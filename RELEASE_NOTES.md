@@ -1,21 +1,28 @@
-Optica: the Photonics voxel raytracing engine ported to Minecraft 26.1.2 (Fabric), with Euphoria Patches support.
+> Photonics is free and open-source software, and can be downloaded from https://modrinth.com/mod/photonics (Modrinth), or https://github.com/Redi2Go/PhotonicEngine (GitHub). Anyone can modify and distribute it under the terms of the GNU Lesser General Public License, version 3.
 
-This is the **full** build from `main`: the Photonics port with Optica's performance work. For the port without performance changes, use the **Photonics Unofficial Port** release (from the `photonics-port` branch).
+Optica: Photonics ported to Minecraft 26.1.2 (Fabric), with Euphoria Patches support and optional performance settings.
 
-**Requirements:** Minecraft 26.1.2, Fabric Loader, Fabric API, Iris 1.11.3+ and Sodium 0.9.1+ (0.9.1 works with Voxy). Do not install Photonics alongside Optica.
+**Requirements:** Minecraft 26.1.2, Fabric Loader, Fabric API, Iris 1.11.3+ and Sodium 0.9.1+ (0.9.1 works with Voxy). Optica replaces Photonics; do not install both.
 
-**New in 0.2.0: cached lighting mode**
+**New in 0.3.0**
+- All performance options are now **off by default**, so out of the box Optica renders like Photonics. Turn on what you need in the shader pack's settings (Euphoria Patches: Configure Euphoria Patches > Modded Settings > Photonics):
+  - **Lighting Cache** (baked lighting) and its settings sub-page.
+  - **LOD Quality**: 1.0 (default) = no level of detail; 0.5 is a good balance.
+  - **Light Merging**: Off (default); Medium is a good balance.
+  - **Shadow Update Interval**: every frame (default); 6 frames is a good balance.
+- Optica is now a single release. The separate port-only build is discontinued: Optica with every option off replaces it.
+
+**Lighting cache**
 - A very low-cost lighting mode. Lighting is computed per block face and reused, refreshed in the background (every second by default), so the per-frame cost barely depends on how many lights are nearby.
-- Turn on **Lighting Cache** in the shader pack's settings. With Euphoria Patches it is on the Photonics page (Configure Euphoria Patches > Modded Settings > Photonics), with refresh time, detail, cache memory and GI rays on its Lighting Cache Settings sub-page. Other packs get an **Optica** page at the end of the main settings screen.
 - Changes to lights and blocks appear after the refresh time, and entities do not cast raytraced shadows in this mode.
 
-**Also new in 0.2.0**
-- Performance settings next to the lighting cache: **LOD Quality** (0.1 - 1.0, 1.0 = no level of detail), **Light Merging** (Off - Maximum) and **Shadow Update Interval** (Sharp mode).
-- Fixed lopsided lighting and shadows around small groups of lights (e.g. the four torches of the End fountain) seen from 24+ blocks away: light merging now only merges dense groups.
-- Fixed light leaking through block edges as bright streaks with the lighting cache (e.g. beside the End fountain's rim).
+**Fixes since 0.1.0**
+- Lopsided lighting and shadows around small groups of lights (e.g. the four torches of the End fountain) with light merging on.
+- Light leaking through block edges as bright streaks with the lighting cache.
 
-**Included from 0.1.0**
-- Everything in the port build: Photonics engine on 26.1.2, the Photonics 0.3.x shader API (BASIC mode, legacy GI, legacy tracing API) and all bug fixes.
-- Light merging for dense light groups (lava lakes), distance level of detail in BASIC and ReSTIR, reuse of BASIC direct light across frames, cheaper shadow rays, and a block atlas cache for faster dimension changes.
+**Also included**
+- Photonics engine ported to 26.1.2 (Iris 1.11, Sodium 0.9), with the Photonics 0.3.x shader API for packs such as Euphoria Patches (BASIC mode, legacy GI, legacy tracing API).
+- Fixes for black lighting, lag with Photonics turned off, resizing, ghosting, memory not freed when toggling shaders, crashes on Hypixel and when switching dimensions, hand artifacts and aliasing at reduced render scale.
+- A block atlas cache for faster dimension changes.
 
 Licensed LGPL-3.0-only. Based on Photonics by Redi2Go and Essentuan.
