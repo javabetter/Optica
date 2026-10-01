@@ -445,3 +445,18 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   port. Defaults: Lighting Cache off, LOD Quality 1.0 (`PH_LOD_SCALE` 1000, `ph_lod_enabled` false,
   so legacy GI also traces every frame), Light Merging 0, Shadow Update Interval 1 (BASIC traces every
   pixel every frame, no history reuse). The block atlas cache stays on; it has no visual cost.
+
+**Lighting cache: no more block-by-block loading**
+- Cause: c0 claimed slots for every new sample, but the queue holds 65536 per frame. On a join at high
+  resolution more appear at once; the rest were claimed but never queued, so they stayed empty until
+  the refresh cursor reached them (up to the refresh time) and appeared as dark block patches.
+- Fix: `ph_cache_acquire` only claims a slot while the queue has room (and gives it back if it loses
+  the race for the last places), so the pixel retries next frame and every claimed sample is computed
+  in the frame it is queued.
+- Entry uint 7 stores the frame of the first computation; c2 weights each sample by a 12-frame
+  fade-in. The share of the pixel not covered (`1 - sum of faded bilinear weights`) is filled with
+  BASIC-style direct light from the 4 brightest lights with shadow rays (`rendering/cached/direct.glsl`,
+  shared with c1). It runs only on uncovered pixels, so it costs nothing once the cache is full.
+- Verified by shrinking the queue to 2048: the old code showed dark block patches for several frames
+  after entering the End; the new code is fully lit from the first frame.
+

@@ -5,18 +5,11 @@
 // sample in use is recomputed about once per PH_CACHE_REFRESH_SECONDS.
 
 #include "/photonics/rendering/frag/common.glsl"
-#include "/photonics/light_list.glsl"
-#include "/photonics/tracing.glsl"
-#include "/photonics/utility/color.glsl"
-#include "/photonics/rendering/sharp/light_bins.glsl"
 #include "/photonics/rendering/indirect_lighting.glsl"
 #include "/photonics/rendering/cached/cache.glsl"
+#include "/photonics/rendering/cached/direct.glsl"
 
 //ph_required: uniform float frameTime;
-
-#ifndef PH_MAX_SAMPLES
-#define PH_MAX_SAMPLES 20
-#endif
 
 #ifndef PH_CACHE_REFRESH_SECONDS
 #define PH_CACHE_REFRESH_SECONDS 1.0
@@ -26,7 +19,6 @@
 #define PH_CACHE_GI_SAMPLES 2
 #endif
 
-#define PH_CACHE_SHADOW_ITERATIONS 64
 // GI is averaged over this many updates, so it converges over a few refreshes and still adapts.
 const float ph_cache_gi_history = 8.0f;
 // Samples not used for this many frames are not refreshed (they are off screen).
@@ -35,67 +27,6 @@ const uint ph_cache_refresh_max_age = 120u;
 const float ph_cache_surface_offset = 0.05f;
 
 layout(location = 0) out float scratch_out;
-
-vec3 cache_direct_light(vec3 rt_pos, vec3 normal) {
-#if defined PH_ENABLE_BLOCKLIGHT
-    if (light_list_size <= 0) return vec3(0.0f);
-
-    int first, last;
-    if (!light_bins_lookup(rt_pos, first, last)) return vec3(0.0f);
-
-    // The PH_MAX_SAMPLES lights with the largest unshadowed contribution (as in BASIC mode).
-    int chosen_index[PH_MAX_SAMPLES];
-    float chosen_weight[PH_MAX_SAMPLES];
-    int chosen_count = 0;
-    int weakest = 0;
-
-    for (int i = first; i < last; i++) {
-        int light_index = ph_light_bins_array[i];
-        if (light_index < 0 || light_index >= light_list_size) continue;
-
-        Light light = light_list_get(light_index);
-        float weight = ph_luminance(light_sample_at(light, rt_pos, light.position, normal, normal));
-        if (weight < 0.0001f) continue;
-
-        if (chosen_count < PH_MAX_SAMPLES) {
-            chosen_index[chosen_count] = light_index;
-            chosen_weight[chosen_count] = weight;
-            if (weight < chosen_weight[weakest]) weakest = chosen_count;
-            chosen_count++;
-            continue;
-        }
-
-        if (weight <= chosen_weight[weakest]) continue;
-
-        chosen_index[weakest] = light_index;
-        chosen_weight[weakest] = weight;
-
-        for (int k = 0; k < PH_MAX_SAMPLES; k++)
-            if (chosen_weight[k] < chosen_weight[weakest]) weakest = k;
-    }
-
-    vec3 total = vec3(0.0f);
-
-    for (int k = 0; k < chosen_count; k++) {
-        Light light = light_list_get(chosen_index[k]);
-        vec3 color = light_sample_at(light, rt_pos, light.position, normal, normal);
-
-        if (floor(light.position) == floor(rt_pos)) {
-            total += color;
-            continue;
-        }
-
-        vec3 tint_color;
-        float light_transmittance;
-        if (trace_light_vis(rt_pos, light.position - rt_pos, light.position, PH_CACHE_SHADOW_ITERATIONS, tint_color, light_transmittance))
-            total += color * tint_color * light_transmittance;
-    }
-
-    return total;
-#else
-    return vec3(0.0f);
-#endif
-}
 
 vec3 cache_indirect_light(vec3 rt_pos, vec3 normal, uint slot) {
     vec3 total = vec3(0.0f);
@@ -179,7 +110,7 @@ void main() {
 
     vec3 rt_pos = world_pos + jitter + normal * ph_cache_surface_offset - cameraPosition + rt_camera_position;
 
-    vec3 direct = cache_direct_light(rt_pos, normal);
+    vec3 direct = ph_cache_direct_light(rt_pos, normal, PH_MAX_SAMPLES);
     vec3 indirect_sample = cache_indirect_light(rt_pos, normal, slot);
 
     vec3 old_direct;
@@ -190,5 +121,5 @@ void main() {
     float blend = 1.0f / min(float(gi_samples) + 1.0f, ph_cache_gi_history);
     vec3 indirect = mix(old_indirect, indirect_sample, blend);
 
-    ph_cache_store(slot, direct, indirect, gi_samples + 1u);
+    ph_cache_store(slot, direct, indirect, gi_samples + 1u, computed);
 }

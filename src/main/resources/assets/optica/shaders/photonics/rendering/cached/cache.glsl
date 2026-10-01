@@ -44,10 +44,13 @@ const uint ph_cache_computed_bit = 1u << 31;
 const uint ph_cache_frame_period = 720720u;
 // Entries not seen for this many frames may be replaced by new ones.
 const uint ph_cache_stale_frames = 900u;
+// Newly computed samples fade in over this many frames instead of popping in.
+const float ph_cache_fade_in_frames = 12.0f;
 
 // Entry layout (uints):
 //   0 key0, 1 key1 (0 = empty slot), 2 frame last used, 3 flags (computed bit | GI sample count),
-//   4 direct.rg (half), 5 direct.b | indirect.r (half), 6 indirect.gb (half), 7 unused
+//   4 direct.rg (half), 5 direct.b | indirect.r (half), 6 indirect.gb (half),
+//   7 frame of the first computation (| computed bit; 0 = never computed), for the fade-in
 layout (std430) restrict buffer ph_surface_cache {
     uint ph_cache[];
 };
@@ -249,6 +252,11 @@ uint ph_cache_acquire(CacheKey key) {
 
     if (candidate == ph_cache_none) return ph_cache_none;
 
+    // A new entry must make it into this frame's queue, or it would wait for the background refresh
+    // (up to the refresh time) and fill in block by block. When the queue is full, create it next frame.
+    uint parity = ph_cache_parity();
+    if (ph_cache_state[parity] >= ph_cache_queue_max) return ph_cache_none;
+
     uint base = ph_cache_base(candidate);
     uint previous = atomicCompSwap(ph_cache[base + 1u], candidate_k1, key.k1);
 
@@ -260,12 +268,17 @@ uint ph_cache_acquire(CacheKey key) {
         ph_cache[base + 4u] = 0u;
         ph_cache[base + 5u] = 0u;
         ph_cache[base + 6u] = 0u;
+        ph_cache[base + 7u] = 0u;
 
-        uint index = atomicAdd(ph_cache_state[ph_cache_parity()], 1u);
-        if (index < ph_cache_queue_max)
+        uint index = atomicAdd(ph_cache_state[parity], 1u);
+        if (index < ph_cache_queue_max) {
             ph_cache_state[ph_cache_state_header + index] = candidate;
+            return candidate;
+        }
 
-        return candidate;
+        // Lost the race for the last queue places: give the slot back and retry next frame.
+        ph_cache[base + 1u] = 0u;
+        return ph_cache_none;
     }
 
     // Another pixel claimed the slot at the same time, most likely for the same key.
@@ -286,8 +299,18 @@ void ph_cache_load(uint slot, out vec3 direct, out vec3 indirect) {
     indirect = vec3(d_b_i_r.y, i_gb);
 }
 
-void ph_cache_store(uint slot, vec3 direct, vec3 indirect, uint gi_samples) {
+// How far a computed sample has faded in (0 - 1).
+float ph_cache_fade_in(uint slot) {
+    uint first = ph_cache[ph_cache_base(slot) + 7u];
+    if ((first & ph_cache_computed_bit) == 0u) return 0.0f;
+
+    return clamp(float(ph_cache_age(first & ~ph_cache_computed_bit) + 1u) / ph_cache_fade_in_frames, 0.0f, 1.0f);
+}
+
+void ph_cache_store(uint slot, vec3 direct, vec3 indirect, uint gi_samples, bool was_computed) {
     uint base = ph_cache_base(slot);
+    if (!was_computed) ph_cache[base + 7u] = ph_cache_frame() | ph_cache_computed_bit;
+
     ph_cache[base + 4u] = packHalf2x16(direct.rg);
     ph_cache[base + 5u] = packHalf2x16(vec2(direct.b, indirect.r));
     ph_cache[base + 6u] = packHalf2x16(indirect.gb);
