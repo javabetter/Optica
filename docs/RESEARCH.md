@@ -432,3 +432,8 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   stayed separate, which made the light and shadows lopsided. Now only dense groups merge: at least
   max(4, base cell size) lights at the default level (2x / 0.5x / 0.25x of that for Low / High /
   Maximum; halved per over-budget pass).
+- Lighting cache light leak (separate from the merging bug): cache samples sit at exact lattice
+  fractions and lights at block centres, so rows of samples traced shadow rays exactly through the
+  vertical edges where the stepped rim blocks touch diagonally. The tracer settles exact ties on one
+  side, so those rays leaked in two diagonal directions (SE and NW), giving bright streaks that
+  bilinear interpolation widened. c1 now offsets samples by a tiny irregular in-plane amount.

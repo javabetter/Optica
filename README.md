@@ -40,10 +40,10 @@ screen instead.
 
 ## Branches and releases
 
-- `main`: the full mod. It includes Optica's performance work: merging of dense light groups (such
+- `main` (**Optica**): the full mod. It includes Optica's performance work: merging of dense light groups (such
   as lava lakes), distance-based level of detail for lighting in both modes, temporal reuse of
   BASIC-mode direct light, cheaper shadow rays, and a block atlas cache for faster dimension changes.
-- `photonics-port`: the Photonics port with compatibility work and bug fixes only, without those
+- `photonics-port` (**Photonics Unofficial Port**): the Photonics port with compatibility work and bug fixes only, without those
   performance changes. Use it to compare against Photonics, or if you prefer the unmodified
   behaviour.
 

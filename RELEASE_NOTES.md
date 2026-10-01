@@ -1,6 +1,6 @@
 Optica: the Photonics voxel raytracing engine ported to Minecraft 26.1.2 (Fabric), with Euphoria Patches support.
 
-This is the **full** build from `main`: the Photonics port with Optica's performance work. For the port without performance changes, use the `v0.1.0-port` release.
+This is the **full** build from `main`: the Photonics port with Optica's performance work. For the port without performance changes, use the **Photonics Unofficial Port** release (from the `photonics-port` branch).
 
 **Requirements:** Minecraft 26.1.2, Fabric Loader, Fabric API, Iris 1.11.3+ and Sodium 0.9.1+ (0.9.1 works with Voxy). Do not install Photonics alongside Optica.
 
@@ -12,6 +12,7 @@ This is the **full** build from `main`: the Photonics port with Optica's perform
 **Also new in 0.2.0**
 - Performance settings next to the lighting cache: **LOD Quality** (0.1 - 1.0, 1.0 = no level of detail), **Light Merging** (Off - Maximum) and **Shadow Update Interval** (Sharp mode).
 - Fixed lopsided lighting and shadows around small groups of lights (e.g. the four torches of the End fountain) seen from 24+ blocks away: light merging now only merges dense groups.
+- Fixed light leaking through block edges as bright streaks with the lighting cache (e.g. beside the End fountain's rim).
 
 **Included from 0.1.0**
 - Everything in the port build: Photonics engine on 26.1.2, the Photonics 0.3.x shader API (BASIC mode, legacy GI, legacy tracing API) and all bug fixes.
