@@ -10,6 +10,7 @@
 
 #include "/photonics/rendering/frag/common.glsl"
 #include "/photonics/write_indirect.glsl"
+#include "/photonics/utility/lod.glsl"
 
 uniform sampler2D legacy_gi;
 
@@ -25,7 +26,7 @@ void main() {
 
     // 5x5 edge-aware blur with a stride of 2 texels; beyond 64 blocks a 3x3 one with a stride of 3
     // (Optica LOD: far away GI detail is not visible, and this pass reads three textures per tap).
-    bool far = dot(frag_player_pos, frag_player_pos) > 64.0f * 64.0f;
+    bool far = ph_lod_distance(frag_player_pos) > 64.0f;
     int radius = far ? 1 : 2;
     int stride = far ? 3 : 2;
 

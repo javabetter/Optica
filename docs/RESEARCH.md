@@ -386,10 +386,13 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   boundaries were pushed out (samples 100/75/50% at 32/64 blocks), and its base refresh interval is 6.
 
 **Cached lighting mode**
-- Selected on the Optica page of the pack's Iris settings menu. `/photonics/optica_settings.glsl`
-  is a virtual pack file whose `#define ... // [...]` lines Iris discovers as pack options. It is
-  only added for packs Optica runs with. `ShaderPropertiesMixin` adds `screen.OPTICA`, links it
-  from the main `screen`, and registers sliders. Iris reads the layout from the *original*
+- Switched on with the Lighting Cache option in the pack's Iris settings menu.
+  `/photonics/optica_settings.glsl` is a virtual pack file whose `#define ... // [...]` lines Iris
+  discovers as pack options. It is only added for packs Optica runs with. `ShaderPropertiesMixin`
+  appends Optica's options to the pack's Photonics screen (the shortest `screen.*PHOTONICS*` name;
+  EP: `screen.PHOTONICS_SETTINGS`, pinned to 2 columns because Iris otherwise switches long pages to
+  3), adds the `screen.OPTICA_CACHE` sub-page, and registers sliders. Packs without such a screen
+  get `screen.OPTICA`, linked from the main `screen`. Iris reads the layout from the *original*
   (un-preprocessed) properties, so that copy is the one patched. `LanguageMapMixin` merges in the
   labels. On load, `OpticaSettings` reads the option values, overrides the pack's
   `photonics.lightingMode` with `CACHED`, and passes the settings on as `optica.*` keys
@@ -416,3 +419,16 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
 - The allocator only reuses exact-size free regions and never defragments (also inherited).
 - 26.1 graphics presets (`graphicsPreset`) re-apply the render distance at startup; use
   `graphicsPreset:"custom"` to control it.
+
+**Settings for the performance work, and the End fountain asymmetry**
+- LOD Quality q becomes `PH_LOD_SCALE` = 16^(q - 0.5) (1000 at q = 1). Every LOD decision (BASIC,
+  ReSTIR, legacy GI, cache detail, light merge cells) uses distance / `PH_LOD_SCALE`
+  (`utility/lod.glsl`, `LightClusterer`). Shadow Update Interval is `PH_SHARP_REFRESH_INTERVAL`.
+  Both are `OptimizationProperties`, read from `optica.*` keys that `OpticaSettings` writes.
+- Light Merging level L scales merge cells by 2^(L - 2); 0 turns merging off.
+- End fountain bug: seen from 24+ blocks, merge cells were 8 blocks and any 2 identical lights in a
+  cell merged. Cells are aligned to world coordinates, so the cell boundary at x = 0 / z = 0 cut
+  through the fountain: the +x and +z torches merged into one light on one of them while the others
+  stayed separate, which made the light and shadows lopsided. Now only dense groups merge: at least
+  max(4, base cell size) lights at the default level (2x / 0.5x / 0.25x of that for Low / High /
+  Maximum; halved per over-budget pass).

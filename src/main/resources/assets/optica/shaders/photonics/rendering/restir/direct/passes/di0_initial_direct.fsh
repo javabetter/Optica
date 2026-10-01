@@ -6,6 +6,7 @@
 
 #include "/photonics/rendering/frag/common.glsl"
 #include "/photonics/rendering/restir/direct/reservoir.glsl"
+#include "/photonics/utility/lod.glsl"
 
 layout(location = DIRECT_RESERVOIR_0) out vec4 di_reservoir_0;
 
@@ -19,7 +20,7 @@ void main() {
 
     // Optica: level of detail by distance. Fewer light candidates far away; the visibility of the chosen
     // light is still checked in di3 (the pre-check here only helps reuse).
-    float distance = length(frag_player_pos);
+    float distance = ph_lod_distance(frag_player_pos);
     int initial_samples = distance < 32.0f ? PH_RESTIR_INITIAL_SAMPLES
                         : distance < 64.0f ? max(PH_RESTIR_INITIAL_SAMPLES / 2, 1)
                         : max(PH_RESTIR_INITIAL_SAMPLES / 4, 1);

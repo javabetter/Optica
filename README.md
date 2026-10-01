@@ -15,18 +15,28 @@ with Voxy). Optica replaces Photonics; do not install both.
 A third lighting mode for low-end GPUs. Lighting is computed per block face in the world and reused,
 refreshed in the background, so the per-frame cost barely depends on how many lights are around.
 Changes to lights and blocks show up with a delay of up to the refresh time, and entities do not cast
-raytraced shadows.
+raytraced shadows. It works with Euphoria Patches set to either Photonics mode (Sharp/BASIC is
+recommended).
 
-Enable it in the shader pack's settings menu: Optica adds an **Optica** page at the end of the
-pack's main settings screen (Iris: Shader Packs > Shader Pack Settings), with these options:
+## Settings (main branch)
 
-- **Lighting Mode**: Shader Pack (the pack's own BASIC or ReSTIR mode) or Cached.
-- **Cache Refresh Time**: time to recompute all cached lighting once (0.25 - 10 s).
-- **Cache Detail**: lighting samples per block edge near the camera (1, 2, 4 or 8).
-- **Cache Memory**: GPU memory for the cache (32 - 512 MB).
-- **Cache GI Rays**: sky/GI rays per cache update (Off disables GI in this mode).
+Optica's settings are shader pack options. With Euphoria Patches they are at the bottom of the pack's
+Photonics page (Shader Packs > Shader Pack Settings > Configure Euphoria Patches > Modded Settings >
+Photonics). Packs without a Photonics page get an **Optica** page at the end of their main settings
+screen instead.
 
-It works with Euphoria Patches set to either Photonics mode (BASIC is recommended).
+- **Lighting Cache**: Off, or On for the cached lighting mode (replaces the pack's lighting mode).
+- **Lighting Cache Settings** (sub-page):
+  - **Refresh Time**: time to recompute all cached lighting once (0.25 - 10 s).
+  - **Cache Detail**: lighting samples per block edge near the camera (1, 2, 4 or 8).
+  - **Cache Memory**: GPU memory for the cache (32 - 512 MB).
+  - **Cache GI Rays**: sky/GI rays per cache update (Off disables GI while the cache is on).
+- **LOD Quality** (0.1 - 1.0): how far lighting keeps full detail before it gets cheaper. 0.5 is the
+  default; 1.0 is maximum quality (no level of detail).
+- **Light Merging** (Off, Low, Medium, High, Maximum): how aggressively dense groups of the same light
+  (lava lakes, glowstone ceilings) are merged into fewer lights. Medium is the default.
+- **Shadow Update Interval** (every frame - 16 frames): Sharp mode, frames between shadow updates of
+  nearby pixels. 6 is the default.
 
 ## Branches and releases
 

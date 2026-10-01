@@ -11,6 +11,7 @@ import com.optica.core.rendering.AbstractRenderingComponent;
 import com.optica.core.rendering.RenderingComponent;
 import com.optica.core.rendering.SectionManager;
 import com.optica.core.rendering.lights.BufferLightList;
+import com.optica.core.rendering.lights.LightMerging;
 import com.optica.core.rendering.lights.HandheldItemSupplier;
 import com.optica.core.rendering.world.allocator.buffer.BufferPaletteTexture;
 import com.optica.core.rendering.world.allocator.buffer.BufferWorldAllocator;
@@ -67,8 +68,12 @@ public abstract class PhotonicsPipeline extends AbstractRenderingComponent {
                         sectionManager,
                         properties.getLightListProperties().getSize(),
                         worldCompiler::origin,
-                        // ReSTIR sums every light, BASIC only the brightest few per fragment
-                        properties.getRenderer() == PhotonicsRenderer.RESTIR ? 1.0f : 0.5f
+                        new LightMerging(
+                                // ReSTIR sums every light, BASIC only the brightest few per fragment
+                                properties.getRenderer() == PhotonicsRenderer.RESTIR ? 1.0f : 0.5f,
+                                properties.getOptimizationProperties().getLightMerging(),
+                                properties.getOptimizationProperties().getLodScale()
+                        )
                 )
         );
     }

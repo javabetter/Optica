@@ -36,9 +36,9 @@ public class BufferLightList extends AbstractLightList {
             SectionManager sectionManager,
             int maxLights,
             Supplier<WorldOrigin> worldOriginSupplier,
-            float clusterGainExponent
+            LightMerging merging
     ) {
-        super(sectionManager, maxLights, worldOriginSupplier, clusterGainExponent);
+        super(sectionManager, maxLights, worldOriginSupplier, merging);
 
         this.listHeap = IRenderSystem.getDevice()
                 .ph$createBufferHeap(

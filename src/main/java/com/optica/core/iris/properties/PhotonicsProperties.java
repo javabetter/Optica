@@ -8,6 +8,7 @@ import com.optica.core.iris.properties.annotations.Defines;
 import com.optica.core.iris.properties.annotations.FloatRange;
 import com.optica.core.iris.properties.annotations.Key;
 import com.optica.core.iris.properties.components.LightListProperties;
+import com.optica.core.iris.properties.components.OptimizationProperties;
 import com.optica.core.iris.properties.rendering.BlockLightProperties;
 import com.optica.core.iris.properties.rendering.GiProperties;
 import com.optica.core.iris.properties.rendering.HandheldProperties;
@@ -37,4 +38,7 @@ public interface PhotonicsProperties {
     GiProperties getGiProperties();
 
     HandheldProperties getHandheldProperties();
+
+    // Optica
+    OptimizationProperties getOptimizationProperties();
 }

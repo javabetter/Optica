@@ -3,6 +3,7 @@
 #include "/photonics/rendering/frag/common.glsl"
 #include "/photonics/rendering/restir/indirect/reservoir.glsl"
 #include "/photonics/rendering/indirect_lighting.glsl"
+#include "/photonics/utility/lod.glsl"
 
 layout(location = INDIRECT_RESERVOIR_0) out vec4 gi_reservoir_0;
 layout(location = INDIRECT_RESERVOIR_1) out uvec3 gi_reservoir_1;
@@ -13,7 +14,7 @@ void main() {
 
     // Optica: level of detail by distance. Far pixels trace a GI path every 2nd/4th frame (interleaved);
     // on the other frames they contribute no new sample and temporal reuse (gi1) carries the history.
-    float distance = length(frag_player_pos);
+    float distance = ph_lod_distance(frag_player_pos);
     int interval = distance < 48.0f ? 1 : distance < 96.0f ? 2 : 4;
     ivec2 pixel = ivec2(gl_FragCoord.xy);
     int phase = (pixel.x & 1) | ((pixel.y & 1) << 1);

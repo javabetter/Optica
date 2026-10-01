@@ -13,6 +13,8 @@
 //
 // The table is open addressing with a short linear probe. Entries not used for a while are replaced.
 
+#include "/photonics/utility/lod.glsl"
+
 //ph_required: uniform vec3 cameraPosition;
 //ph_required: uniform int frameCounter;
 
@@ -105,6 +107,7 @@ ivec2 ph_cache_plane_axes(int axis) {
 }
 
 int ph_cache_level_for_distance(float distance) {
+    distance = ph_lod_distance(distance);
     int n = PH_CACHE_DETAIL;
     if (distance > 16.0f) n /= 2;
     if (distance > 40.0f) n /= 2;

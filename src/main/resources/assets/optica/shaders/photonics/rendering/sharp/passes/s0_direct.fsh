@@ -17,6 +17,7 @@
 #include "/photonics/tracing.glsl"
 #include "/photonics/utility/color.glsl"
 #include "/photonics/rendering/sharp/light_bins.glsl"
+#include "/photonics/utility/lod.glsl"
 
 #ifndef PH_MAX_SAMPLES
 #define PH_MAX_SAMPLES 20
@@ -88,7 +89,7 @@ void main() {
 
     // Optica: level of detail by distance. Far pixels refresh less often and consider fewer lights;
     // at a distance neither the latency nor the missing dim lights are noticeable.
-    float distance = length(frag_player_pos);
+    float distance = ph_lod_distance(frag_player_pos);
     int refresh_interval = distance < 32.0f ? PH_SHARP_REFRESH_INTERVAL
                          : distance < 80.0f ? PH_SHARP_REFRESH_INTERVAL * 2
                          : PH_SHARP_REFRESH_INTERVAL * 4;

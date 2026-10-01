@@ -11,6 +11,7 @@
 #include "/photonics/rendering/frag/common.glsl"
 #include "/photonics/utility/projection.glsl"
 #include "/photonics/rendering/indirect_lighting.glsl"
+#include "/photonics/utility/lod.glsl"
 
 uniform sampler2D prev_legacy_gi;
 
@@ -65,7 +66,7 @@ void main() {
     // Optica: level of detail by distance. A GI path is traced every other frame nearby and more rarely
     // further away (interleaved over a 4x4 tile); in between the accumulated history is reused. Pixels
     // with little history (just revealed) always trace.
-    float distance = length(frag_player_pos);
+    float distance = ph_lod_distance(frag_player_pos);
     int interval = distance < 48.0f ? 2 : distance < 96.0f ? 4 : 8;
     ivec2 pixel = ivec2(gl_FragCoord.xy);
     int phase = (pixel.x & 3) | ((pixel.y & 3) << 2);
