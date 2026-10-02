@@ -38,7 +38,10 @@ public class CachedPipeline extends PhotonicsPipeline {
     ) {
         super(phProperties, atlasDownloader, irisPipeline);
 
-        registerComponent(new SurfaceCache(cachedProperties.getCapacityLog2()));
+        var cache = registerComponent(new SurfaceCache(cachedProperties.getCapacityLog2()));
+        // Recompute cached lighting where blocks or lights changed, as soon as the change reaches the GPU.
+        worldCompiler.setSectionUploadListener(cache::onSectionsUploaded);
+        lightList.setLightsChangedListener(cache::onLightsChanged);
 
         Pipelines.fragData(this, phProperties, irisPipeline);
         Pipelines.handheldLighting(this, handheldItemSupplier, phProperties, irisPipeline);

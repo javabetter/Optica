@@ -30,9 +30,12 @@ import org.joml.Vector3f;
 import org.joml.Vector3i;
 import org.joml.Vector4f;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.Objects;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
@@ -63,6 +66,32 @@ public abstract class AbstractLightList implements Runnable, RenderingComponent 
 
     // Optica: see LightClusterer.cluster
     private final LightMerging merging;
+    // Optica: told on the render thread which lights changed (world position, reach in blocks) when a new
+    // light list reaches the GPU; the cached lighting mode recomputes lighting around them.
+    private volatile Consumer<List<Vector4f>> lightsChangedListener = null;
+
+    public void setLightsChangedListener(Consumer<List<Vector4f>> listener) {
+        this.lightsChangedListener = listener;
+    }
+
+    /** Lights in one list but not the other (added, removed or changed), as (x, y, z, reach). */
+    private static List<Vector4f> changedLights(LightList before, LightList after) {
+        var beforeSet = before == null ? new HashSet<TracedLightPosition>() : new HashSet<>(before);
+        var afterSet = new HashSet<>(after);
+        List<Vector4f> changed = new ArrayList<>();
+
+        for (var light : afterSet)
+            if (!beforeSet.contains(light)) changed.add(reach(light));
+        for (var light : beforeSet)
+            if (!afterSet.contains(light)) changed.add(reach(light));
+
+        return changed;
+    }
+
+    private static Vector4f reach(TracedLightPosition light) {
+        var pos = light.pos();
+        return new Vector4f((float) pos.x, (float) pos.y, (float) pos.z, Math.min(light.lightInfo().radiusInBlocks(), LightBins.MAX_RADIUS));
+    }
 
     @SuppressWarnings("UnstableApiUsage")
     public AbstractLightList(
@@ -329,6 +358,12 @@ public abstract class AbstractLightList implements Runnable, RenderingComponent 
             uniformUpdater.updateAll();
 
             if (lights != mostRecentLights) {
+                var listener = lightsChangedListener;
+                if (listener != null && lights != null) {
+                    var changed = changedLights(mostRecentLights, lights);
+                    if (!changed.isEmpty()) listener.accept(changed);
+                }
+
                 mostRecentLights = lights;
                 clearMapping();
             }

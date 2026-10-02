@@ -28,6 +28,9 @@ public abstract class PhotonicsPipeline extends AbstractRenderingComponent {
     private static final int ROOT_VOXEL_DEPTH = 3;
 
     protected final PhotonicsProperties properties;
+    // Optica: exposed so the cached lighting mode can follow world and light uploads.
+    protected final WorldCompiler worldCompiler;
+    protected final BufferLightList lightList;
     private final List<IrisRenderer> renderers = new ArrayList<>();
 
     public PhotonicsPipeline(
@@ -49,7 +52,7 @@ public abstract class PhotonicsPipeline extends AbstractRenderingComponent {
         var worldRegistry = new WorldRegistry(worldAllocator, paletteTexture, atlasDownloader);
 
         var builtSectionQueue = sectionManager.<ChunkCompiler.BuildResult>newTaskQueue(WorldCompiler.MAX_SECTIONS_PER_RUN << 1, true);
-        var worldCompiler = registerComponent(new WorldCompiler(
+        this.worldCompiler = registerComponent(new WorldCompiler(
                 ROOT_VOXEL_DEPTH,
                 worldAllocator,
                 paletteTexture,
@@ -63,7 +66,7 @@ public abstract class PhotonicsPipeline extends AbstractRenderingComponent {
                 worldRegistry
         ));
 
-        registerComponent(
+        this.lightList = registerComponent(
                 new BufferLightList(
                         sectionManager,
                         properties.getLightListProperties().getSize(),

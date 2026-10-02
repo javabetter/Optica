@@ -19,6 +19,8 @@
 
 //ph_required: uniform vec3 cameraPosition;
 //ph_required: uniform int frameCounter;
+// The cache's own frame counter (SurfaceCache.java): dirty regions are stamped with it.
+//ph_required: uniform int optica_cache_frame;
 //ph_required: uniform float frameTime;
 //ph_required: uniform float viewHeight;
 //ph_required: uniform mat4 gbufferProjection;
@@ -53,8 +55,12 @@ const uint ph_cache_queued_bit = 1u << 30;
 // Target spacing of samples on screen. Lower is sharper but needs more samples.
 const float ph_cache_pixels_per_sample = 3.0f;
 
-// Iris wraps frameCounter at 720720.
+// optica_cache_frame wraps at this period (SurfaceCache.FRAME_PERIOD).
 const uint ph_cache_frame_period = 720720u;
+// An entry is recomputed for a world change at most this often.
+const uint ph_cache_dirty_min_frames = 4u;
+// Must match SurfaceCache.java.
+const int ph_cache_dirty_max = 64;
 // Entries not seen for this many frames may be replaced by new ones.
 const uint ph_cache_stale_frames = 900u;
 
@@ -72,17 +78,23 @@ layout (std430) restrict buffer ph_surface_cache_state {
     uint ph_cache_state[];
 };
 
+// Recently changed regions of the world (SurfaceCache.java), newest first: [0] count, then per region
+// ivec4(min block xyz, frame), ivec4(max block xyz, unused).
+layout (std430) restrict readonly buffer ph_surface_cache_dirty {
+    int ph_cache_dirty[];
+};
+
 struct CacheKey {
     uint k0;
     uint k1;
 };
 
 uint ph_cache_frame() {
-    return uint(frameCounter);
+    return uint(optica_cache_frame);
 }
 
 uint ph_cache_parity() {
-    return uint(frameCounter) & 1u;
+    return uint(optica_cache_frame) & 1u;
 }
 
 uint ph_cache_age(uint last_used) {
@@ -325,6 +337,35 @@ bool ph_cache_is_outdated(uint slot) {
 
     float max_frames = 2.0f * float(PH_CACHE_REFRESH_SECONDS) / max(frameTime, 0.001f);
     return float(ph_cache_age(last & ~ph_cache_computed_bit)) > max_frames;
+}
+
+// Age (in frames) of the newest world change around a block, or ph_cache_none if there is none.
+uint ph_cache_dirty_age(ivec3 block) {
+    int count = min(ph_cache_dirty[0], ph_cache_dirty_max);
+    uint newest = ph_cache_none;
+
+    for (int i = 0; i < count; i++) {
+        int base = 4 + i * 8;
+        ivec3 lo = ivec3(ph_cache_dirty[base], ph_cache_dirty[base + 1], ph_cache_dirty[base + 2]);
+        ivec3 hi = ivec3(ph_cache_dirty[base + 4], ph_cache_dirty[base + 5], ph_cache_dirty[base + 6]);
+        if (any(lessThan(block, lo)) || any(greaterThanEqual(block, hi))) continue;
+
+        newest = min(newest, ph_cache_age(uint(ph_cache_dirty[base + 3])));
+    }
+
+    return newest;
+}
+
+// True when a computed entry predates a world change `dirty_age` frames ago (and was not recomputed
+// in the last few frames, which bounds the work while blocks keep changing nearby).
+bool ph_cache_predates_change(uint slot, uint dirty_age) {
+    if (dirty_age == ph_cache_none) return false;
+
+    uint last = ph_cache[ph_cache_base(slot) + 7u];
+    if ((last & ph_cache_computed_bit) == 0u) return false;
+
+    uint age = ph_cache_age(last & ~ph_cache_computed_bit);
+    return age > dirty_age && age >= ph_cache_dirty_min_frames;
 }
 
 // Queues an existing entry to be recomputed this frame (once, however many pixels ask).

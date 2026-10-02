@@ -480,3 +480,19 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
 - Player shadows from the sun not lining up on grass/tall grass: identical with EP's Photonics lighting
   turned off, so it is Euphoria Patches' own foliage shadowing, not Optica.
 
+**Lighting cache: no dropouts, instant updates for world changes**
+- Remaining lines/dropouts: whenever a pixel's samples were unavailable for a frame (queue full in
+  raster order, entry replaced, a detail level not computed yet), its missing share was filled with
+  the 4-light stand-in without GI, which looks different. c2 now fills the missing share from the
+  pixel's reprojected history; the stand-in (now 8 lights) is only for pixels with no history.
+- "Half-updates, then reverts": samples are refreshed one by one in hash order over the refresh time,
+  so after a change some samples showed it and others did not, and moving between detail levels could
+  swap back to samples computed before the change. Now `WorldCompiler` reports sections when their
+  blocks reach the GPU and `AbstractLightList` reports added/removed/changed lights when a new list
+  reaches the GPU. `SurfaceCache` turns them into dirty boxes (section +16 blocks, light +reach)
+  stamped with its own frame clock (`optica_cache_frame`, which the cache now uses for all stamps), up
+  to 64 newest on the GPU. c0 re-queues every sample in view that was computed before the newest box
+  around its pixel (at most every 4 frames per sample).
+- Verified with a 10 s refresh time: a placed torch lights up fully within 2 frames, and its light is
+  gone 2 frames after removing it (before: patch by patch over the refresh time).
+

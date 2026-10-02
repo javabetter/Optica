@@ -27,7 +27,9 @@ import org.joml.Vector3d;
 import org.joml.Vector3f;
 import org.joml.Vector3i;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -51,6 +53,11 @@ public class WorldCompiler implements Runnable, RenderingComponent {
 
     private final RegionIdManager regionIds = new RegionIdManager();
     private final TreeManager treeManager;
+
+    // Optica: block positions of sections written since the last upload, and who wants to know when
+    // they reach the GPU (the cached lighting mode recomputes lighting around them).
+    private final List<Vector3i> writtenSections = new ArrayList<>();
+    private volatile Consumer<List<Vector3i>> sectionUploadListener = null;
 
     private final ReentrantLock uploadLock = new ReentrantLock();
     private final Condition uploadDone = uploadLock.newCondition();
@@ -120,6 +127,10 @@ public class WorldCompiler implements Runnable, RenderingComponent {
 
 
                 var builtSections = taskQueue.drain(MAX_SECTIONS_PER_RUN);
+                List<Vector3i> batch = new ArrayList<>(builtSections.size());
+                for (var section : builtSections)
+                    batch.add(new Vector3i(section.chunkBlockPos()));
+
                 if (!builtSections.isEmpty()) {
                     recenter();
 
@@ -130,7 +141,7 @@ public class WorldCompiler implements Runnable, RenderingComponent {
                 if (!unloadedSections.isEmpty() || !builtSections.isEmpty()) {
                     stopUpload();
                     writeSections();
-                    awaitUpload();
+                    awaitUpload(batch);
 
                     registry.freeUnusedObjects();
                 }
@@ -248,16 +259,23 @@ public class WorldCompiler implements Runnable, RenderingComponent {
         }
     }
 
-    private void awaitUpload() throws InterruptedException {
+    private void awaitUpload(List<Vector3i> writtenBatch) throws InterruptedException {
         uploadLock.lockInterruptibly();
 
         try {
+            // Reported by the upload that publishes them (onFrameBegin), not before.
+            if (sectionUploadListener != null) writtenSections.addAll(writtenBatch);
             canUpload = true;
             uniformUpdater.updateNextFrame();
             uploadDone.await();
         } finally {
             uploadLock.unlock();
         }
+    }
+
+    /** Optica: called on the render thread with the block positions of sections as they reach the GPU. */
+    public void setSectionUploadListener(Consumer<List<Vector3i>> listener) {
+        this.sectionUploadListener = listener;
     }
 
     @Override
@@ -280,6 +298,12 @@ public class WorldCompiler implements Runnable, RenderingComponent {
             mostRecentMaxBlock = new Vector3f(maxBlock);
 
             mostRecentBlockContainerScale = 21 - (treeManager.depth() - (VoxelTreeEntry.BLOCK_CONTAINER_DEPTH) << 1);
+
+            var listener = sectionUploadListener;
+            if (listener != null && !writtenSections.isEmpty()) {
+                listener.accept(List.copyOf(writtenSections));
+                writtenSections.clear();
+            }
 
             uploadDone.signalAll();
         } finally {

@@ -1,8 +1,9 @@
 #version 430
 
 // Optica cached lighting, pass 1 of 4: find (or create) the four cache samples around every pixel and
-// remember their slots for the resolve pass. New samples, and old ones seen again after a while out of
-// view, are queued and computed in the update pass of this same frame.
+// remember their slots for the resolve pass. New samples, old ones seen again after a while out of
+// view, and ones computed before a nearby block or light change are queued and computed in the update
+// pass of this same frame.
 
 #include "/photonics/rendering/frag/common.glsl"
 #include "/photonics/rendering/cached/surface.glsl"
@@ -21,6 +22,10 @@ void main() {
     vec4 weights;
     ph_cache_corners(surface, cells, weights);
 
+    // The newest block or light change around this pixel, if any.
+    vec3 world_pos = frag_is_hand ? cameraPosition : frag_player_pos + cameraPosition;
+    uint dirty_age = ph_cache_dirty_age(ivec3(floor(world_pos)));
+
     for (int i = 0; i < 4; i++) {
         // Corners with no weight (the pixel sits exactly on a sample row) need no sample.
         if (weights[i] <= 0.0f) continue;
@@ -28,9 +33,9 @@ void main() {
         uint slot = ph_cache_acquire(ph_cache_key(surface, cells[i]));
         cache_slots_out[i] = slot;
 
-        // Seen again after being out of view: recompute now rather than whenever the rotating
-        // update gets to it.
-        if (slot != ph_cache_none && ph_cache_is_outdated(slot))
+        // Recompute now rather than whenever the rotating update gets to it: samples seen again after
+        // being out of view, and samples computed before a block or light changed nearby.
+        if (slot != ph_cache_none && (ph_cache_is_outdated(slot) || ph_cache_predates_change(slot, dirty_age)))
             ph_cache_request_refresh(slot);
     }
 }

@@ -3,10 +3,11 @@
 // Optica cached lighting, pass 3 of 4: interpolate the cached samples around every pixel. Direct light
 // goes to sharp_direct (read by the pack through the BASIC samplers), GI to cached_indirect.
 //
-// Until a pixel's samples are computed (joining a world, newly revealed surfaces), the missing share is
-// filled with live BASIC-style lighting from the brightest few lights, so lighting is present from the
-// first frame. The result is then blended with the reprojected result of earlier frames, which smooths
-// out the steps when samples are computed, refreshed or change detail with distance.
+// Where some of a pixel's samples are not available this frame (not computed yet, the queue was full,
+// the entry was replaced), the missing share keeps what the pixel showed before (its reprojected
+// history), so lighting never drops out. Only surfaces with no history (just revealed, or joining a
+// world) use live BASIC-style lighting from the brightest lights as a stand-in. The result is blended
+// with the history, which smooths the steps when samples are computed, refreshed or change detail.
 
 #include "/photonics/rendering/frag/common.glsl"
 #include "/photonics/utility/projection.glsl"
@@ -15,7 +16,7 @@
 
 // Lights evaluated (with shadow rays) for the stand-in lighting. It only runs where samples are
 // missing, so it costs nothing once the cache has filled.
-const int ph_cache_fallback_lights = 4;
+const int ph_cache_fallback_lights = 8;
 // Share of this frame's result in the output; the rest is history. About 6 frames to settle.
 const float ph_cache_history_blend = 0.3f;
 
@@ -117,24 +118,29 @@ void main() {
         indirect /= weight_sum;
     }
 
-    if (coverage < 0.999f) {
+    // The hand moves with the camera; its lighting is a single coarse sample and needs no smoothing.
+    vec3 history_direct;
+    vec3 history_indirect;
+    bool has_history = !frag_is_hand && load_history(history_direct, history_indirect);
+
+#if defined PH_CACHE_COMBINED_GI
+    if (has_history) history_direct = max(history_direct - history_indirect, vec3(0.0f));
+#endif
+
+    if (has_history) {
+        // Missing samples keep the previous result; new data blends in gradually.
+        direct = mix(history_direct, direct, coverage);
+        indirect = mix(history_indirect, indirect, coverage);
+
+        direct = mix(history_direct, direct, ph_cache_history_blend);
+        indirect = mix(history_indirect, indirect, ph_cache_history_blend);
+    } else if (coverage < 0.999f) {
         vec3 position = frag_is_hand ? rt_camera_position : frag_data_rt_pos(_frag_data);
         vec3 fallback = ph_cache_direct_light(position + frag_geo_normal * 0.05f, frag_geo_normal, ph_cache_fallback_lights);
 
         direct = mix(fallback, direct, coverage);
         // No stand-in for GI: it fades in with the samples.
         indirect *= coverage;
-    }
-
-    // The hand moves with the camera; its lighting is a single coarse sample and needs no smoothing.
-    vec3 history_direct;
-    vec3 history_indirect;
-    if (!frag_is_hand && load_history(history_direct, history_indirect)) {
-#if defined PH_CACHE_COMBINED_GI
-        history_direct = max(history_direct - history_indirect, vec3(0.0f));
-#endif
-        direct = mix(history_direct, direct, ph_cache_history_blend);
-        indirect = mix(history_indirect, indirect, ph_cache_history_blend);
     }
 
 #if defined PH_CACHE_COMBINED_GI
