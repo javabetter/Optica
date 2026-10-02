@@ -6,8 +6,8 @@
 // Where some of a pixel's samples are not available this frame (not computed yet, the queue was full,
 // the entry was replaced), the missing share keeps what the pixel showed before (its reprojected
 // history), so lighting never drops out. Only surfaces with no history (just revealed, or joining a
-// world) use live BASIC-style lighting from the brightest lights as a stand-in. The result is blended
-// with the history, which smooths the steps when samples are computed, refreshed or change detail.
+// world) use live BASIC-style lighting from the brightest lights as a stand-in. Fully covered pixels
+// use the samples directly.
 
 #include "/photonics/rendering/frag/common.glsl"
 #include "/photonics/utility/projection.glsl"
@@ -17,8 +17,6 @@
 // Lights evaluated (with shadow rays) for the stand-in lighting. It only runs where samples are
 // missing, so it costs nothing once the cache has filled.
 const int ph_cache_fallback_lights = 8;
-// Share of this frame's result in the output; the rest is history. About 6 frames to settle.
-const float ph_cache_history_blend = 0.3f;
 
 #ifndef PH_CACHE_DEBUG_VIEW
 #define PH_CACHE_DEBUG_VIEW 0
@@ -160,14 +158,15 @@ void main() {
     if (has_history) history_direct = max(history_direct - history_indirect, vec3(0.0f));
 #endif
 
-    if (has_history) {
-        // Missing samples keep the previous result; new data blends in gradually.
+    if (coverage >= 0.999f) {
+        // All samples available: use them as they are. Cached direct light is deterministic, so it
+        // needs no temporal smoothing, and re-sampling the previous frame while the camera moves left
+        // stripes (lines that showed most when looking or moving sideways).
+    } else if (has_history) {
+        // Missing samples keep the previous result until they are computed.
         direct = mix(history_direct, direct, coverage);
         indirect = mix(history_indirect, indirect, coverage);
-
-        direct = mix(history_direct, direct, ph_cache_history_blend);
-        indirect = mix(history_indirect, indirect, ph_cache_history_blend);
-    } else if (coverage < 0.999f) {
+    } else {
         vec3 position = frag_is_hand ? rt_camera_position : frag_data_rt_pos(_frag_data);
         vec3 fallback = ph_cache_direct_light(position + frag_geo_normal * 0.05f, frag_geo_normal, ph_cache_fallback_lights);
 

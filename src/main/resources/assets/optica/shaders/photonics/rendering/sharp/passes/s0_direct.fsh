@@ -23,7 +23,9 @@
 #define PH_MAX_SAMPLES 20
 #endif
 
-#define PH_SHARP_SHADOW_ITERATIONS 64
+// Upstream Photonics always traced shadow rays with 100 steps (it ignored the parameter); fewer can
+// make long rays give up and count as shadowed.
+#define PH_SHARP_SHADOW_ITERATIONS 100
 
 #ifndef PH_SHARP_REFRESH_INTERVAL
 #define PH_SHARP_REFRESH_INTERVAL 1

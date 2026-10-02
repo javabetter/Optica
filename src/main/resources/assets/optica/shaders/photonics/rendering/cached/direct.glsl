@@ -15,11 +15,18 @@
 #define PH_MAX_SAMPLES 20
 #endif
 
-const int ph_cache_shadow_iterations = 64;
+// Tracer steps a shadow ray may take before it gives up (and counts as shadowed). Long rays through
+// detailed builds need well over 64; with too few, lights went dark everywhere whenever the voxel
+// tree around the player made rays longer (e.g. after walking a few blocks). Rays only use what
+// they need, and this runs per cache sample, not per pixel.
+const int ph_cache_shadow_iterations = 256;
 
 vec3 ph_cache_direct_light(vec3 rt_pos, vec3 normal, int max_lights) {
 #if defined PH_ENABLE_BLOCKLIGHT
-    if (light_list_size <= 0) return vec3(0.0f);
+    if (light_list_size <= 0) {
+        PH_PROFILE_ADD(PH_STAT_DIRECT_NO_LIST, 1);
+        return vec3(0.0f);
+    }
 
     int first, last;
     if (!light_bins_lookup(rt_pos, first, last)) {
@@ -60,6 +67,8 @@ vec3 ph_cache_direct_light(vec3 rt_pos, vec3 normal, int max_lights) {
             if (chosen_weight[k] < chosen_weight[weakest]) weakest = k;
     }
 
+    if (chosen_count == 0) PH_PROFILE_ADD(PH_STAT_DIRECT_NO_CANDIDATES, 1);
+
     vec3 total = vec3(0.0f);
 
     for (int k = 0; k < chosen_count; k++) {
@@ -73,8 +82,11 @@ vec3 ph_cache_direct_light(vec3 rt_pos, vec3 normal, int max_lights) {
 
         vec3 tint_color;
         float light_transmittance;
-        if (trace_light_vis(rt_pos, light.position - rt_pos, light.position, ph_cache_shadow_iterations, tint_color, light_transmittance))
+        int reason;
+        if (trace_light_vis_reason(rt_pos, light.position - rt_pos, light.position, ph_cache_shadow_iterations, tint_color, light_transmittance, reason))
             total += color * tint_color * light_transmittance;
+
+        PH_PROFILE_ADD(PH_STAT_RAY_REACHED + clamp(reason, 0, 4), 1);
     }
 
     return total;

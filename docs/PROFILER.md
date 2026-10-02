@@ -55,6 +55,12 @@ Each line averages about one second. "Per frame" means divided by `gpuFrames`.
 | `tableUsed%` | Estimated share of the table in use (from the background refresh's visits). |
 | `zeroDirect` | Samples computed with no direct light at all (normal far from lights; suspicious near them). |
 | `binsMiss` | Light lookups outside the light grid (lights there are ignored). |
+| `noLightList` | Samples computed while the light list was empty. |
+| `noLightInRange` | Samples with no light in range at all. |
+| `rays` | Shadow rays per frame (cache samples and stand-in lighting). |
+| `rayReached%`, `rayBlocked%` | Shadow rays that reached their light / were blocked by a block (a real shadow). |
+| `rayOutOfSteps%` | Shadow rays that gave up before reaching the light (counted as shadow; should be ~0). |
+| `rayLeftWorld%`, `rayMissed%` | Shadow rays that left the voxel world / ended without hitting anything (should be ~0). |
 | `covered%`, `partial%`, `uncovered%` | Pixels with all / some / none of their samples available. |
 | `history%` | Pixels that could reuse the previous frame's lighting. |
 | `standIn%` | Pixels using the stand-in lighting (no samples and no history). |

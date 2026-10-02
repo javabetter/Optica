@@ -41,7 +41,14 @@
 #define PH_STAT_VIEW_W_MAX         34   // max framebuffer width seen (cache resolution)
 #define PH_STAT_VIEW_H_MAX         35
 #define PH_STAT_BLENDED            36   // c0: pixels blending towards the next finer level
-#define PH_STAT_COUNT              37
+#define PH_STAT_DIRECT_NO_LIST     37   // direct light: the light list was empty
+#define PH_STAT_DIRECT_NO_CANDIDATES 38 // direct light: no light in range of the sample
+#define PH_STAT_RAY_REACHED        39   // shadow rays that reached their light
+#define PH_STAT_RAY_BLOCKED        40   // ... blocked by another block
+#define PH_STAT_RAY_OUT_OF_STEPS   41   // ... gave up (step limit)
+#define PH_STAT_RAY_LEFT_WORLD     42   // ... left the voxel world
+#define PH_STAT_RAY_MISSED         43   // ... ended without hitting anything
+#define PH_STAT_COUNT              44
 
 #if defined PH_CACHE_PROFILE
 layout (std430) restrict buffer ph_surface_cache_profile {

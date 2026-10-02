@@ -33,7 +33,8 @@ public final class CacheProfiler implements RenderingComponent {
             BUDGET = 19, CURSOR_EMPTY = 20, CURSOR_IDLE = 21, CURSOR_COMPUTED = 22, ZERO_DIRECT = 23,
             BINS_MISS = 24, COVERED = 25, PARTIAL = 26, UNCOVERED = 27, HISTORY = 28, FALLBACK = 29,
             SLOT_NONE = 30, SLOT_MISMATCH = 31, NOT_COMPUTED = 32, LIGHTS_MAX = 33, VIEW_W = 34, VIEW_H = 35,
-            BLENDED = 36;
+            BLENDED = 36, DIRECT_NO_LIST = 37, DIRECT_NO_CANDIDATES = 38, RAY_REACHED = 39, RAY_BLOCKED = 40,
+            RAY_OUT_OF_STEPS = 41, RAY_LEFT_WORLD = 42, RAY_MISSED = 43;
     private static final int COUNTERS = 64;
     private static final int BYTES = COUNTERS * Integer.BYTES;
 
@@ -148,6 +149,8 @@ public final class CacheProfiler implements RenderingComponent {
         double pixels = Math.max(c[PIXELS], 1);
         double corners = Math.max(c[CORNERS], 1);
         long visited = c[CURSOR_EMPTY] + c[CURSOR_IDLE] + c[CURSOR_COMPUTED];
+        double rays = c[RAY_REACHED] + c[RAY_BLOCKED] + c[RAY_OUT_OF_STEPS] + c[RAY_LEFT_WORLD] + c[RAY_MISSED];
+        double raysOr1 = Math.max(rays, 1);
 
         StringBuilder line = new StringBuilder();
         line.append(String.format(Locale.ROOT, "t=%s fps=%.0f maxFrameMs=%.1f gpuFrames=%d view=%dx%d lights=%d",
@@ -166,6 +169,10 @@ public final class CacheProfiler implements RenderingComponent {
                 c[QUEUE_REQUESTED] / frames, c[QUEUE_PROCESSED] / frames, c[BUDGET] / frames, c[CURSOR_COMPUTED] / frames,
                 visited == 0 ? 0.0 : 100.0 * (c[CURSOR_IDLE] + c[CURSOR_COMPUTED]) / visited,
                 c[ZERO_DIRECT] / frames, c[BINS_MISS] / frames));
+        line.append(String.format(Locale.ROOT, " | noLightList=%.0f noLightInRange=%.0f rays=%.0f rayReached%%=%.1f rayBlocked%%=%.1f rayOutOfSteps%%=%.2f rayLeftWorld%%=%.2f rayMissed%%=%.2f",
+                c[DIRECT_NO_LIST] / frames, c[DIRECT_NO_CANDIDATES] / frames, rays / frames,
+                100 * c[RAY_REACHED] / raysOr1, 100 * c[RAY_BLOCKED] / raysOr1, 100 * c[RAY_OUT_OF_STEPS] / raysOr1,
+                100 * c[RAY_LEFT_WORLD] / raysOr1, 100 * c[RAY_MISSED] / raysOr1));
         line.append(String.format(Locale.ROOT, " | covered%%=%.2f partial%%=%.2f uncovered%%=%.2f history%%=%.1f standIn%%=%.2f slotNone=%.0f slotMismatch=%.0f notComputed=%.0f",
                 100 * c[COVERED] / pixels, 100 * c[PARTIAL] / pixels, 100 * c[UNCOVERED] / pixels,
                 100 * c[HISTORY] / pixels, 100 * c[FALLBACK] / pixels,

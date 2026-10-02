@@ -527,3 +527,19 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   remains as 1/2/4 rays, with a 32-update average restarted after nearby changes, 4x rays for a
   sample's first estimate, and an edge-aware blur sized to the sample spacing (c3).
 
+**Lighting cache: second user profile (lights vanish when walking away, lines when moving sideways)**
+- In every "lighting disappeared" window, coverage was ~100% but `zeroDirect` was ~100% of computed
+  samples (cursor refreshes included, normally ~40-50%): the direct light computation itself returned
+  nothing, globally, for 10-20 s at a time. The light list was not empty and no light lookup missed
+  the bins.
+- Most likely cause: the shadow ray step limit. Optica made `trace_light_vis` honour `max_iterations`
+  (upstream ignored it and always used 100) and the cache and BASIC passed 64. Each iteration crosses
+  one voxel tree cell, and how many a ray needs depends on the tree around the player, which changes
+  as they move and chunks load. Exhausted rays count as shadowed. The cache now uses 256 and BASIC
+  100. `trace_light_vis_reason` reports why each ray failed; the profiler logs reached / blocked /
+  out of steps / left world / missed so the next report can confirm it.
+- Lines worse when looking or moving sideways: c2 blended every pixel 30% new / 70% reprojected
+  history; repeated bilinear resampling of the history at render scale 0.65 leaves stripes in motion.
+  Cached direct light is deterministic, GI is screen space now, and world changes are handled by dirty
+  regions, so fully covered pixels now skip the blend; history only fills missing samples.
+
