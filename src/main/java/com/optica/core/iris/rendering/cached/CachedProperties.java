@@ -45,6 +45,19 @@ public interface CachedProperties extends PropertyDefines {
     @Key(legacy = "optica.cacheGiSamples")
     int getGiSamples();
 
+    /** Optica profiler: count what the cache does and log it (CacheProfiler). */
+    @DefaultValue("false")
+    @Defines("PH_CACHE_PROFILE")
+    @Key(legacy = "optica.cacheProfiler")
+    boolean isProfiling();
+
+    /** 0 off, 1 cache status colours, 2 detail level colours. */
+    @DefaultValue("0")
+    @IntRange(min = 0, max = 2)
+    @Defines("PH_CACHE_DEBUG_VIEW")
+    @Key(legacy = "optica.cacheDebugView")
+    int getDebugView();
+
     @Override
     default void defineProperties(PhotonicsProperties properties) {
         stringDefine("PH_CACHED_ACTIVE", "");

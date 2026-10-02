@@ -31,6 +31,7 @@ screen instead. Every option below starts at its highest-quality setting (off).
   - **Cache Detail**: lighting samples per block edge near the camera (1, 2, 4 or 8).
   - **Cache Memory**: GPU memory for the cache (32 - 512 MB).
   - **Cache GI Rays**: sky/GI rays per cache update (Off disables GI while the cache is on).
+  - **Profiler** and **Debug View**: diagnostics for bug reports, see `docs/PROFILER.md`.
 - **LOD Quality** (0.1 - 1.0): how far lighting keeps full detail before it gets cheaper. 1.0, the
   default, is maximum quality (no level of detail); 0.5 is a good balance.
 - **Light Merging** (Off, Low, Medium, High, Maximum): how aggressively dense groups of the same light

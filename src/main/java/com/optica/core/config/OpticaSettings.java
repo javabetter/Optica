@@ -25,6 +25,8 @@ public final class OpticaSettings {
     public static final String CACHE_DETAIL = "OPTICA_CACHE_DETAIL";
     public static final String CACHE_MEMORY = "OPTICA_CACHE_MEMORY";
     public static final String CACHE_GI_SAMPLES = "OPTICA_CACHE_GI_SAMPLES";
+    public static final String CACHE_PROFILER = "OPTICA_CACHE_PROFILER";
+    public static final String CACHE_DEBUG_VIEW = "OPTICA_CACHE_DEBUG_VIEW";
     public static final String LOD_QUALITY = "OPTICA_LOD_QUALITY";
     public static final String LIGHT_MERGING = "OPTICA_LIGHT_MERGING";
     public static final String SHADOW_UPDATE = "OPTICA_SHADOW_UPDATE";
@@ -44,7 +46,9 @@ public final class OpticaSettings {
             "<empty>", "<empty>",
             LIGHTING_CACHE, "<empty>",
             CACHE_REFRESH, CACHE_DETAIL,
-            CACHE_MEMORY, CACHE_GI_SAMPLES
+            CACHE_MEMORY, CACHE_GI_SAMPLES,
+            "<empty>", "<empty>",
+            CACHE_PROFILER, CACHE_DEBUG_VIEW
     );
     public static final List<String> SLIDERS = List.of(
             LOD_QUALITY, LIGHT_MERGING, SHADOW_UPDATE, CACHE_REFRESH, CACHE_DETAIL, CACHE_MEMORY, CACHE_GI_SAMPLES
@@ -58,6 +62,8 @@ public final class OpticaSettings {
     public final int cacheDetail;
     public final int cacheMemoryMb;
     public final int cacheGiSamples;
+    public final boolean cacheProfiler;
+    public final int cacheDebugView;
     public final float lodQuality;
     public final int lightMerging;
     public final int shadowUpdateInterval;
@@ -69,6 +75,8 @@ public final class OpticaSettings {
         cacheDetail = Integer.highestOneBit(clamp(parseInt(options.apply(CACHE_DETAIL), 4), 1, 8));
         cacheMemoryMb = clamp(parseInt(options.apply(CACHE_MEMORY), 64), 16, 512);
         cacheGiSamples = clamp(parseInt(options.apply(CACHE_GI_SAMPLES), 2), 0, 8);
+        cacheProfiler = "1".equals(trim(options.apply(CACHE_PROFILER)));
+        cacheDebugView = clamp(parseInt(options.apply(CACHE_DEBUG_VIEW), 0), 0, 2);
         lodQuality = clamp(parseFloat(options.apply(LOD_QUALITY), 1.0f), 0.1f, 1.0f);
         lightMerging = clamp(parseInt(options.apply(LIGHT_MERGING), 0), 0, 4);
         shadowUpdateInterval = clamp(parseInt(options.apply(SHADOW_UPDATE), 1), 1, 16);
@@ -94,6 +102,8 @@ public final class OpticaSettings {
             result.setProperty("optica.cacheDetail", Integer.toString(cacheDetail));
             result.setProperty("optica.cacheCapacityLog2", Integer.toString(capacityLog2()));
             result.setProperty("optica.cacheGiSamples", Integer.toString(cacheGiSamples));
+            result.setProperty("optica.cacheProfiler", Boolean.toString(cacheProfiler));
+            result.setProperty("optica.cacheDebugView", Integer.toString(cacheDebugView));
         }
 
         return result;
@@ -210,6 +220,22 @@ public final class OpticaSettings {
         t.put("option." + CACHE_GI_SAMPLES, "Cache GI Rays");
         t.put("option." + CACHE_GI_SAMPLES + ".comment", "Sky/GI rays per cache update. Off turns GI off while the cache is on.");
         t.put("value." + CACHE_GI_SAMPLES + ".0", "Off");
+
+        t.put("option." + CACHE_PROFILER, "Profiler");
+        t.put("option." + CACHE_PROFILER + ".comment",
+                "Diagnostics: records what the lighting cache does each second to optica-profile.log in the Minecraft folder. "
+                        + "Costs some performance; leave it off unless you are collecting a report.");
+        t.put("value." + CACHE_PROFILER + ".0", "Off");
+        t.put("value." + CACHE_PROFILER + ".1", "On");
+
+        t.put("option." + CACHE_DEBUG_VIEW, "Debug View");
+        t.put("option." + CACHE_DEBUG_VIEW + ".comment",
+                "Diagnostics: colours the lighting. Cache Status: green = cached, yellow = partly cached, red = keeping the previous "
+                        + "lighting, magenta = stand-in lighting, blue = hand. Detail Level: red/yellow/green/cyan = 1/2/4/8 samples "
+                        + "per block edge, blue = one sample per block.");
+        t.put("value." + CACHE_DEBUG_VIEW + ".0", "Off");
+        t.put("value." + CACHE_DEBUG_VIEW + ".1", "Cache Status");
+        t.put("value." + CACHE_DEBUG_VIEW + ".2", "Detail Level");
 
         t.put("option." + LOD_QUALITY, "LOD Quality");
         t.put("option." + LOD_QUALITY + ".comment",

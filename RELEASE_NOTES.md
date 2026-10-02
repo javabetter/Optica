@@ -11,6 +11,7 @@ Optica: Photonics ported to Minecraft 26.1.2 (Fabric), with Euphoria Patches sup
 - Areas you look back at after a while are updated immediately, and the result is blended over a few frames, so refreshes and detail changes no longer pop.
 - Placing or breaking blocks and lights updates the cached lighting around them within a few frames, instead of patch by patch over the refresh time.
 - Lighting no longer drops out or shows lines when samples are briefly unavailable: those pixels keep their previous lighting until the new samples are in.
+- New diagnostics on the Lighting Cache Settings page: a **Profiler** that logs what the cache does to `optica-profile.log`, and a **Debug View** that colours the lighting by cache state or detail level.
 
 **New in 0.3.0**
 - All performance options are now **off by default**, so out of the box Optica renders like Photonics. Turn on what you need in the shader pack's settings (Euphoria Patches: Configure Euphoria Patches > Modded Settings > Photonics):

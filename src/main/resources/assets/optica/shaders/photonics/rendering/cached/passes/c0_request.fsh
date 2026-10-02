@@ -18,6 +18,10 @@ void main() {
 
     CacheSurface surface = ph_cache_pixel_surface();
 
+    PH_PROFILE_ADD(PH_STAT_PIXELS, 1);
+    if (surface.coarse) PH_PROFILE_ADD(PH_STAT_COARSE, 1);
+    else PH_PROFILE_ADD(PH_STAT_LEVEL0 + clamp(surface.level, 0, 3), 1);
+
     ivec2 cells[4];
     vec4 weights;
     ph_cache_corners(surface, cells, weights);
@@ -30,12 +34,21 @@ void main() {
         // Corners with no weight (the pixel sits exactly on a sample row) need no sample.
         if (weights[i] <= 0.0f) continue;
 
+        PH_PROFILE_ADD(PH_STAT_CORNERS, 1);
         uint slot = ph_cache_acquire(ph_cache_key(surface, cells[i]));
         cache_slots_out[i] = slot;
+        if (slot == ph_cache_none) continue;
 
         // Recompute now rather than whenever the rotating update gets to it: samples seen again after
         // being out of view, and samples computed before a block or light changed nearby.
-        if (slot != ph_cache_none && (ph_cache_is_outdated(slot) || ph_cache_predates_change(slot, dirty_age)))
+        bool outdated = ph_cache_is_outdated(slot);
+        bool predates_change = !outdated && ph_cache_predates_change(slot, dirty_age);
+
+        if (outdated || predates_change) {
+            if (outdated) PH_PROFILE_ADD(PH_STAT_REFRESH_OUTDATED, 1);
+            else PH_PROFILE_ADD(PH_STAT_REFRESH_DIRTY, 1);
+
             ph_cache_request_refresh(slot);
+        }
     }
 }

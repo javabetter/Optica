@@ -20,6 +20,10 @@ const int ph_cache_fallback_lights = 8;
 // Share of this frame's result in the output; the rest is history. About 6 frames to settle.
 const float ph_cache_history_blend = 0.3f;
 
+#ifndef PH_CACHE_DEBUG_VIEW
+#define PH_CACHE_DEBUG_VIEW 0
+#endif
+
 uniform usampler2D cache_slots;
 uniform sampler2D prev_sharp_direct;
 uniform sampler2D prev_cached_indirect;
@@ -94,12 +98,25 @@ void main() {
     vec3 indirect = vec3(0.0f);
     float weight_sum = 0.0f;
 
+    PH_PROFILE_MAX(PH_STAT_VIEW_W_MAX, uint(gl_FragCoord.x) + 1u);
+    PH_PROFILE_MAX(PH_STAT_VIEW_H_MAX, uint(gl_FragCoord.y) + 1u);
+
     for (int i = 0; i < 4; i++) {
-        if (weights[i] <= 0.0f || slots[i] == ph_cache_none) continue;
+        if (weights[i] <= 0.0f) continue;
+        if (slots[i] == ph_cache_none) {
+            PH_PROFILE_ADD(PH_STAT_SLOT_NONE, 1);
+            continue;
+        }
 
         // The slot may have been given to another key since the request pass (rare races).
-        if (!ph_cache_matches(slots[i], ph_cache_key(surface, cells[i]))) continue;
-        if (!ph_cache_is_computed(slots[i])) continue;
+        if (!ph_cache_matches(slots[i], ph_cache_key(surface, cells[i]))) {
+            PH_PROFILE_ADD(PH_STAT_SLOT_MISMATCH, 1);
+            continue;
+        }
+        if (!ph_cache_is_computed(slots[i])) {
+            PH_PROFILE_ADD(PH_STAT_NOT_COMPUTED, 1);
+            continue;
+        }
 
         vec3 sample_direct;
         vec3 sample_indirect;
@@ -122,6 +139,12 @@ void main() {
     vec3 history_direct;
     vec3 history_indirect;
     bool has_history = !frag_is_hand && load_history(history_direct, history_indirect);
+
+    if (coverage >= 0.999f) PH_PROFILE_ADD(PH_STAT_COVERED, 1);
+    else if (coverage > 0.0f) PH_PROFILE_ADD(PH_STAT_PARTIAL, 1);
+    else PH_PROFILE_ADD(PH_STAT_UNCOVERED, 1);
+    if (has_history) PH_PROFILE_ADD(PH_STAT_HISTORY, 1);
+    else if (coverage < 0.999f) PH_PROFILE_ADD(PH_STAT_FALLBACK, 1);
 
 #if defined PH_CACHE_COMBINED_GI
     if (has_history) history_direct = max(history_direct - history_indirect, vec3(0.0f));
@@ -150,4 +173,21 @@ void main() {
     sharp_direct_out = vec4(direct, 1.0f);
 #endif
     cached_indirect_out = vec4(indirect, 1.0f);
+
+#if PH_CACHE_DEBUG_VIEW == 1
+    // Cache status: green = all samples available, yellow = some, red = none (keeping the previous
+    // lighting), magenta = none and no previous lighting (stand-in lighting), blue = the hand.
+    vec3 status = frag_is_hand ? vec3(0.1f, 0.3f, 1.0f)
+                : coverage >= 0.999f ? vec3(0.1f, 1.0f, 0.1f)
+                : coverage > 0.0f ? vec3(1.0f, 0.9f, 0.1f)
+                : has_history ? vec3(1.0f, 0.1f, 0.1f) : vec3(1.0f, 0.1f, 1.0f);
+    sharp_direct_out = vec4(status * 2.0f, 1.0f);
+    cached_indirect_out = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+#elif PH_CACHE_DEBUG_VIEW == 2
+    // Detail level: red = 1 sample per block edge, yellow = 2, green = 4, cyan = 8, blue = coarse.
+    const vec3 level_colors[4] = vec3[](vec3(1.0f, 0.1f, 0.1f), vec3(1.0f, 0.9f, 0.1f), vec3(0.1f, 1.0f, 0.1f), vec3(0.1f, 1.0f, 1.0f));
+    vec3 level_color = surface.coarse ? vec3(0.2f, 0.3f, 1.0f) : level_colors[clamp(surface.level, 0, 3)];
+    sharp_direct_out = vec4(level_color * 2.0f, 1.0f);
+    cached_indirect_out = vec4(0.0f, 0.0f, 0.0f, 1.0f);
+#endif
 }

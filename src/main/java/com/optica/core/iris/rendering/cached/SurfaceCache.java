@@ -54,6 +54,11 @@ public final class SurfaceCache implements RenderingComponent {
 
     /** The cache's frame clock (the shaders' optica_cache_frame), wrapping at FRAME_PERIOD. */
     private int frame = 0;
+    /** Totals for the profiler (CacheProfiler). */
+    long sectionsUploaded = 0;
+    long lightsChanged = 0;
+    long regionsAdded = 0;
+
     /** Regions (min xyz, max xyz in blocks) reported since the last frame. */
     private final List<int[]> pending = new ArrayList<>();
     private final ArrayDeque<DirtyBox> boxes = new ArrayDeque<>();
@@ -78,6 +83,7 @@ public final class SurfaceCache implements RenderingComponent {
 
     /** World sections (block positions of their origin) whose blocks just reached the GPU. */
     public void onSectionsUploaded(List<Vector3i> sectionOrigins) {
+        sectionsUploaded += sectionOrigins.size();
         for (var origin : sectionOrigins)
             pending.add(new int[] {
                     origin.x - DIRTY_MARGIN, origin.y - DIRTY_MARGIN, origin.z - DIRTY_MARGIN,
@@ -87,6 +93,7 @@ public final class SurfaceCache implements RenderingComponent {
 
     /** Lights (world position, reach) that were added, removed or changed in the light list just uploaded. */
     public void onLightsChanged(List<Vector4f> lights) {
+        lightsChanged += lights.size();
         for (var light : lights) {
             int reach = (int) Math.ceil(light.w) + 1;
             int x = (int) Math.floor(light.x), y = (int) Math.floor(light.y), z = (int) Math.floor(light.z);
@@ -118,6 +125,7 @@ public final class SurfaceCache implements RenderingComponent {
 
     private void addBox(int[] box) {
         boxes.addFirst(new DirtyBox(box[0], box[1], box[2], box[3], box[4], box[5], frame));
+        regionsAdded++;
 
         while (boxes.size() > DIRTY_MAX) boxes.removeLast();
     }

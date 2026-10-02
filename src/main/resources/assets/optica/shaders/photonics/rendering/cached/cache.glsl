@@ -16,6 +16,7 @@
 // The table is open addressing with a short linear probe. Entries not used for a while are replaced.
 
 #include "/photonics/utility/lod.glsl"
+#include "/photonics/rendering/cached/profile.glsl"
 
 //ph_required: uniform vec3 cameraPosition;
 //ph_required: uniform int frameCounter;
@@ -271,6 +272,7 @@ uint ph_cache_acquire(CacheKey key) {
 
         if (k1 == key.k1 && ph_cache[base] == key.k0) {
             ph_cache[base + 2u] = frame;
+            PH_PROFILE_ADD(PH_STAT_FOUND, 1);
             return slot;
         }
 
@@ -280,12 +282,18 @@ uint ph_cache_acquire(CacheKey key) {
         }
     }
 
-    if (candidate == ph_cache_none) return ph_cache_none;
+    if (candidate == ph_cache_none) {
+        PH_PROFILE_ADD(PH_STAT_FAIL_PROBE, 1);
+        return ph_cache_none;
+    }
 
     // A new entry must make it into this frame's queue, or it would wait for the background refresh
     // (up to the refresh time) and fill in block by block. When the queue is full, create it next frame.
     uint parity = ph_cache_parity();
-    if (ph_cache_state[parity] >= ph_cache_queue_max) return ph_cache_none;
+    if (ph_cache_state[parity] >= ph_cache_queue_max) {
+        PH_PROFILE_ADD(PH_STAT_FAIL_QUEUE, 1);
+        return ph_cache_none;
+    }
 
     uint base = ph_cache_base(candidate);
     uint previous = atomicCompSwap(ph_cache[base + 1u], candidate_k1, key.k1);
@@ -303,15 +311,18 @@ uint ph_cache_acquire(CacheKey key) {
         uint index = atomicAdd(ph_cache_state[parity], 1u);
         if (index < ph_cache_queue_max) {
             ph_cache_state[ph_cache_state_header + index] = candidate;
+            PH_PROFILE_ADD(PH_STAT_CREATED, 1);
             return candidate;
         }
 
         // Lost the race for the last queue places: give the slot back and retry next frame.
         ph_cache[base + 1u] = 0u;
+        PH_PROFILE_ADD(PH_STAT_FAIL_OVERFLOW, 1);
         return ph_cache_none;
     }
 
     // Another pixel claimed the slot at the same time, most likely for the same key.
+    PH_PROFILE_ADD(PH_STAT_FAIL_RACE, 1);
     return previous == key.k1 ? candidate : ph_cache_none;
 }
 
@@ -372,16 +383,21 @@ bool ph_cache_predates_change(uint slot, uint dirty_age) {
 void ph_cache_request_refresh(uint slot) {
     uint base = ph_cache_base(slot);
     uint parity = ph_cache_parity();
-    if (ph_cache_state[parity] >= ph_cache_queue_max) return;
+    if (ph_cache_state[parity] >= ph_cache_queue_max) {
+        PH_PROFILE_ADD(PH_STAT_REFRESH_REJECTED, 1);
+        return;
+    }
 
     uint flags = atomicOr(ph_cache[base + 3u], ph_cache_queued_bit);
     if ((flags & ph_cache_queued_bit) != 0u) return;
 
     uint index = atomicAdd(ph_cache_state[parity], 1u);
-    if (index < ph_cache_queue_max)
+    if (index < ph_cache_queue_max) {
         ph_cache_state[ph_cache_state_header + index] = slot;
-    else
+    } else {
         atomicAnd(ph_cache[base + 3u], ~ph_cache_queued_bit);
+        PH_PROFILE_ADD(PH_STAT_REFRESH_REJECTED, 1);
+    }
 }
 
 void ph_cache_store(uint slot, vec3 direct, vec3 indirect, uint gi_samples) {

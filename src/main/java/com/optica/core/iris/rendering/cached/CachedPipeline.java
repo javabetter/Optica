@@ -43,6 +43,25 @@ public class CachedPipeline extends PhotonicsPipeline {
         worldCompiler.setSectionUploadListener(cache::onSectionsUploaded);
         lightList.setLightsChangedListener(cache::onLightsChanged);
 
+        if (cachedProperties.isProfiling()) {
+            registerComponent(new CacheProfiler(cache, String.format(java.util.Locale.ROOT,
+                    "settings: detail=%d memory=%dMB (2^%d entries) refresh=%.2fs giRays=%d combinedGi=%b maxSamples=%d "
+                            + "renderScale=%.2f gi=%b lodScale=%.3f maxLights=%d debugView=%d",
+                    cachedProperties.getDetail(),
+                    (int) (((1L << cachedProperties.getCapacityLog2()) * SurfaceCache.ENTRY_UINTS * 4) >> 20),
+                    cachedProperties.getCapacityLog2(),
+                    cachedProperties.getRefreshSeconds(),
+                    cachedProperties.getGiSamples(),
+                    cachedProperties.isCombinedGi(),
+                    cachedProperties.getMaxSamples(),
+                    phProperties.getRenderScale(),
+                    phProperties.getGiProperties().isEnabled(),
+                    phProperties.getOptimizationProperties().getLodScale(),
+                    phProperties.getLightListProperties().getSize(),
+                    cachedProperties.getDebugView()
+            )));
+        }
+
         Pipelines.fragData(this, phProperties, irisPipeline);
         Pipelines.handheldLighting(this, handheldItemSupplier, phProperties, irisPipeline);
 

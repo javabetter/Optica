@@ -9,6 +9,7 @@
 #include "/photonics/tracing.glsl"
 #include "/photonics/utility/color.glsl"
 #include "/photonics/rendering/sharp/light_bins.glsl"
+#include "/photonics/rendering/cached/profile.glsl"
 
 #ifndef PH_MAX_SAMPLES
 #define PH_MAX_SAMPLES 20
@@ -21,7 +22,10 @@ vec3 ph_cache_direct_light(vec3 rt_pos, vec3 normal, int max_lights) {
     if (light_list_size <= 0) return vec3(0.0f);
 
     int first, last;
-    if (!light_bins_lookup(rt_pos, first, last)) return vec3(0.0f);
+    if (!light_bins_lookup(rt_pos, first, last)) {
+        PH_PROFILE_ADD(PH_STAT_BINS_MISS, 1);
+        return vec3(0.0f);
+    }
 
     // The max_lights (at most PH_MAX_SAMPLES) lights with the largest unshadowed contribution, as in
     // BASIC mode.

@@ -70,6 +70,12 @@ void main() {
         // Next frame uses the other counters: empty its queue and advance its cursor.
         ph_cache_state[other] = 0u;
         ph_cache_state[2u + other] = (cursor + budget) & ph_cache_mask;
+
+        PH_PROFILE_ADD(PH_STAT_FRAMES, 1);
+        PH_PROFILE_ADD(PH_STAT_QUEUE_REQUESTED, ph_cache_state[parity]);
+        PH_PROFILE_ADD(PH_STAT_QUEUE_PROCESSED, new_count);
+        PH_PROFILE_ADD(PH_STAT_BUDGET, budget);
+        PH_PROFILE_MAX(PH_STAT_LIGHTS_MAX, max(light_list_size, 0));
     }
 
     uint slot;
@@ -88,13 +94,21 @@ void main() {
 
     uint base = ph_cache_base(slot);
     CacheKey key = CacheKey(ph_cache[base], ph_cache[base + 1u]);
-    if (key.k1 == 0u) return;
+    if (key.k1 == 0u) {
+        if (!is_new) PH_PROFILE_ADD(PH_STAT_CURSOR_EMPTY, 1);
+        return;
+    }
 
     uint flags = ph_cache[base + 3u];
     bool computed = (flags & ph_cache_computed_bit) != 0u;
 
     // Refresh only samples that were on screen recently; new or never computed ones always.
-    if (!is_new && computed && ph_cache_age(ph_cache[base + 2u]) > ph_cache_refresh_max_age) return;
+    if (!is_new && computed && ph_cache_age(ph_cache[base + 2u]) > ph_cache_refresh_max_age) {
+        PH_PROFILE_ADD(PH_STAT_CURSOR_IDLE, 1);
+        return;
+    }
+
+    if (!is_new) PH_PROFILE_ADD(PH_STAT_CURSOR_COMPUTED, 1);
 
     vec3 world_pos;
     vec3 normal;
@@ -111,6 +125,7 @@ void main() {
     vec3 rt_pos = world_pos + jitter + normal * ph_cache_surface_offset - cameraPosition + rt_camera_position;
 
     vec3 direct = ph_cache_direct_light(rt_pos, normal, PH_MAX_SAMPLES);
+    if (all(equal(direct, vec3(0.0f)))) PH_PROFILE_ADD(PH_STAT_ZERO_DIRECT, 1);
     vec3 indirect_sample = cache_indirect_light(rt_pos, normal, slot);
 
     vec3 old_direct;
