@@ -30,7 +30,8 @@ screen instead. Every option below starts at its highest-quality setting (off).
   - **Refresh Time**: time to recompute all cached lighting once (0.25 - 10 s).
   - **Cache Detail**: lighting samples per block edge near the camera (1, 2, 4 or 8).
   - **Cache Memory**: GPU memory for the cache (32 - 512 MB).
-  - **Cache GI Rays**: sky/GI rays per cache update (Off disables GI while the cache is on).
+  - **Cache GI**: Screen Space (default, smooth GI computed each frame as in Sharp mode), or 1 / 2 / 4 rays
+    per cache update (GI stored in the cache: cheaper, but it can look blotchy).
   - **Profiler** and **Debug View**: diagnostics for bug reports, see `docs/PROFILER.md`.
 - **LOD Quality** (0.1 - 1.0): how far lighting keeps full detail before it gets cheaper. 1.0, the
   default, is maximum quality (no level of detail); 0.5 is a good balance.

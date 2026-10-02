@@ -16,11 +16,14 @@
 #endif
 
 #ifndef PH_CACHE_GI_SAMPLES
-#define PH_CACHE_GI_SAMPLES 2
+#define PH_CACHE_GI_SAMPLES 0
 #endif
 
 // GI is averaged over this many updates, so it converges over a few refreshes and still adapts.
-const float ph_cache_gi_history = 8.0f;
+const float ph_cache_gi_history = 32.0f;
+// A sample's first GI estimate (new, or after a nearby change) uses this many times the rays, so it
+// does not start out noisy.
+const int ph_cache_gi_first_multiplier = 4;
 // Samples not used for this many frames are not refreshed (they are off screen).
 const uint ph_cache_refresh_max_age = 120u;
 // Sample points sit slightly in front of their face.
@@ -28,11 +31,12 @@ const float ph_cache_surface_offset = 0.05f;
 
 layout(location = 0) out float scratch_out;
 
-vec3 cache_indirect_light(vec3 rt_pos, vec3 normal, uint slot) {
+vec3 cache_indirect_light(vec3 rt_pos, vec3 normal, uint slot, int rays) {
     vec3 total = vec3(0.0f);
 
 #if defined PH_ENABLE_GI && PH_CACHE_GI_SAMPLES > 0
-    for (int s = 0; s < PH_CACHE_GI_SAMPLES; s++) {
+    for (int s = 0; s < PH_CACHE_GI_SAMPLES * ph_cache_gi_first_multiplier; s++) {
+        if (s >= rays) break;
         uint rnd_state = ph_new_rand_state(vec2(slot & 0xFFFFu, slot >> 16), frameCounter, s);
 
         vec3 indirect = vec3(0.0f);
@@ -44,7 +48,7 @@ vec3 cache_indirect_light(vec3 rt_pos, vec3 normal, uint slot) {
             total += indirect;
     }
 
-    total /= float(PH_CACHE_GI_SAMPLES);
+    total /= float(max(rays, 1));
 #endif
 
     return total;
@@ -126,13 +130,17 @@ void main() {
 
     vec3 direct = ph_cache_direct_light(rt_pos, normal, PH_MAX_SAMPLES);
     if (all(equal(direct, vec3(0.0f)))) PH_PROFILE_ADD(PH_STAT_ZERO_DIRECT, 1);
-    vec3 indirect_sample = cache_indirect_light(rt_pos, normal, slot);
+    // GI is averaged over many updates; it starts over (with more rays) for new samples and after a
+    // nearby block or light change, so it still follows changes quickly.
+    bool restart_gi = !computed || (flags & ph_cache_reset_gi_bit) != 0u;
+    uint gi_samples = restart_gi ? 0u : (flags & 0xFFFFu);
+    int rays = PH_CACHE_GI_SAMPLES * (gi_samples == 0u ? ph_cache_gi_first_multiplier : 1);
+    vec3 indirect_sample = cache_indirect_light(rt_pos, normal, slot, rays);
 
     vec3 old_direct;
     vec3 old_indirect;
     ph_cache_load(slot, old_direct, old_indirect);
 
-    uint gi_samples = computed ? (flags & 0xFFFFu) : 0u;
     float blend = 1.0f / min(float(gi_samples) + 1.0f, ph_cache_gi_history);
     vec3 indirect = mix(old_indirect, indirect_sample, blend);
 

@@ -54,6 +54,8 @@ const uint ph_cache_computed_bit = 1u << 31;
 // k1 of a slot while its new key is being written (valid keys always have bit 31 set). Other pixels
 // neither match nor take a locked slot, so a half-written entry is never mistaken for another key.
 const uint ph_cache_locked = 1u;
+// Set when a refresh is for a nearby world change: the update restarts the entry's GI average.
+const uint ph_cache_reset_gi_bit = 1u << 29;
 // Set while an entry waits in the queue for a refresh, so it is queued only once.
 const uint ph_cache_queued_bit = 1u << 30;
 // Target spacing of samples on screen. Lower is sharper but needs more samples.
@@ -421,8 +423,9 @@ bool ph_cache_predates_change(uint slot, uint dirty_age) {
 }
 
 // Queues an existing entry to be recomputed this frame (once, however many pixels ask). Refreshes may
-// only use the first half of the queue, so new entries always find room.
-void ph_cache_request_refresh(uint slot) {
+// only use the first half of the queue, so new entries always find room. `reset_gi` restarts the
+// entry's GI average (the surroundings changed).
+void ph_cache_request_refresh(uint slot, bool reset_gi) {
     uint base = ph_cache_base(slot);
     uint parity = ph_cache_parity();
     if (ph_cache_state[parity] >= ph_cache_queue_max / 2u) {
@@ -430,14 +433,14 @@ void ph_cache_request_refresh(uint slot) {
         return;
     }
 
-    uint flags = atomicOr(ph_cache[base + 3u], ph_cache_queued_bit);
+    uint flags = atomicOr(ph_cache[base + 3u], ph_cache_queued_bit | (reset_gi ? ph_cache_reset_gi_bit : 0u));
     if ((flags & ph_cache_queued_bit) != 0u) return;
 
     uint index = atomicAdd(ph_cache_state[parity], 1u);
     if (index < ph_cache_queue_max) {
         ph_cache_state[ph_cache_state_header + index] = slot;
     } else {
-        atomicAnd(ph_cache[base + 3u], ~ph_cache_queued_bit);
+        atomicAnd(ph_cache[base + 3u], ~(ph_cache_queued_bit | ph_cache_reset_gi_bit));
         PH_PROFILE_ADD(PH_STAT_REFRESH_REJECTED, 1);
     }
 }

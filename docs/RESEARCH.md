@@ -517,3 +517,13 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   uses the camera snapped to a 16-block grid, and the merged light's position no longer depends on
   list order.
 
+**Lighting cache: blotchy lighting was the cached GI**
+- Confirmed in a daylight overhang test: Sharp mode smooth, cache blotchy, cache with GI off smooth.
+  Each cache sample got 2 GI rays per refresh; even averaged over 32 refreshes (and blurred over two
+  sample spacings on screen) that is far too few rays for sky GI, and bilinear interpolation turns
+  per-sample noise into soft blotches the size of the sample spacing. Screen-space GI (lg0/lg1) traces
+  every pixel and accumulates over frames, so it gets orders of magnitude more rays.
+- Cache GI now defaults to Screen Space (`Pipelines.legacyIndirect`, as BASIC). The per-sample GI
+  remains as 1/2/4 rays, with a 32-update average restarted after nearby changes, 4x rays for a
+  sample's first estimate, and an edge-aware blur sized to the sample spacing (c3).
+

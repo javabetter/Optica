@@ -39,7 +39,7 @@ public interface CachedProperties extends PropertyDefines {
     @Key(legacy = "optica.cacheCapacityLog2")
     int getCapacityLog2();
 
-    @DefaultValue("2")
+    @DefaultValue("0")
     @IntRange(min = 0, max = 8)
     @Defines("PH_CACHE_GI_SAMPLES")
     @Key(legacy = "optica.cacheGiSamples")

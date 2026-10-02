@@ -74,7 +74,7 @@ public final class OpticaSettings {
         cacheRefreshSeconds = clamp(parseFloat(options.apply(CACHE_REFRESH), 1.0f), 0.1f, 30.0f);
         cacheDetail = Integer.highestOneBit(clamp(parseInt(options.apply(CACHE_DETAIL), 4), 1, 8));
         cacheMemoryMb = clamp(parseInt(options.apply(CACHE_MEMORY), 64), 16, 512);
-        cacheGiSamples = clamp(parseInt(options.apply(CACHE_GI_SAMPLES), 2), 0, 8);
+        cacheGiSamples = clamp(parseInt(options.apply(CACHE_GI_SAMPLES), 0), 0, 8);
         cacheProfiler = "1".equals(trim(options.apply(CACHE_PROFILER)));
         cacheDebugView = clamp(parseInt(options.apply(CACHE_DEBUG_VIEW), 0), 0, 2);
         lodQuality = clamp(parseFloat(options.apply(LOD_QUALITY), 1.0f), 0.1f, 1.0f);
@@ -217,9 +217,14 @@ public final class OpticaSettings {
         for (String v : List.of("32", "64", "128", "256", "512"))
             t.put("value." + CACHE_MEMORY + "." + v, v + " MB");
 
-        t.put("option." + CACHE_GI_SAMPLES, "Cache GI Rays");
-        t.put("option." + CACHE_GI_SAMPLES + ".comment", "Sky/GI rays per cache update. Off turns GI off while the cache is on.");
-        t.put("value." + CACHE_GI_SAMPLES + ".0", "Off");
+        t.put("option." + CACHE_GI_SAMPLES, "Cache GI");
+        t.put("option." + CACHE_GI_SAMPLES + ".comment",
+                "Screen Space: global illumination (bounced light) as in Sharp mode, smooth and computed every frame. "
+                        + "1 / 2 / 4 Rays: GI stored in the cache with that many rays per update; cheaper, but it can look blotchy.");
+        t.put("value." + CACHE_GI_SAMPLES + ".0", "Screen Space");
+        t.put("value." + CACHE_GI_SAMPLES + ".1", "1 Ray");
+        t.put("value." + CACHE_GI_SAMPLES + ".2", "2 Rays");
+        t.put("value." + CACHE_GI_SAMPLES + ".4", "4 Rays");
 
         t.put("option." + CACHE_PROFILER, "Profiler");
         t.put("option." + CACHE_PROFILER + ".comment",

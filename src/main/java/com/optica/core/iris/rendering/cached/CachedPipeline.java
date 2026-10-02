@@ -109,5 +109,11 @@ public class CachedPipeline extends PhotonicsPipeline {
         }
 
         renderer.build(this::registerRenderer);
+
+        // Cache GI set to Screen Space (0 rays): BASIC's per-pixel GI, accumulated over frames and
+        // filtered. Per-sample cached GI gets too few rays to be smooth (it shows as soft blotches),
+        // while the expensive part, direct light from many lights, stays cached.
+        if (cachedProperties.getGiSamples() == 0 && !cachedProperties.isCombinedGi())
+            Pipelines.legacyIndirect(this, phProperties, irisPipeline);
     }
 }

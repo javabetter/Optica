@@ -38,7 +38,7 @@ uvec4 request(CacheSurface surface, uint dirty_age) {
             if (outdated) PH_PROFILE_ADD(PH_STAT_REFRESH_OUTDATED, 1);
             else PH_PROFILE_ADD(PH_STAT_REFRESH_DIRTY, 1);
 
-            ph_cache_request_refresh(slot);
+            ph_cache_request_refresh(slot, predates_change);
         }
     }
 
