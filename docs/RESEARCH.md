@@ -496,3 +496,24 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
 - Verified with a 10 s refresh time: a placed torch lights up fully within 2 frames, and its light is
   gone 2 frames after removing it (before: patch by patch over the refresh time).
 
+**Lighting cache: findings from the first user profile (Hypixel, 1871x1078 at render scale 0.65)**
+- Lines: at the reported time every pixel was covered (covered 100%, stand-in 0%), but pixels were
+  split 12/43/36% across three detail levels. Each level boundary is a seam between two differently
+  detailed versions of the lighting; on ceilings and walls seen at an angle the boundaries run across
+  the screen as lines and move with the camera. Fix: continuous level of detail; in the top 40% of a
+  level's range a pixel blends towards the next finer level (smoothstep), using a second set of slots
+  (`cache_slots_fine`). About a fifth of pixels blend, so c0/c2 do ~20% more lookups.
+- Stuck/incomplete lights: in 57 of 164 windows new samples were refused because the queue was full.
+  It was flooded by refresh requests: with a 512 MB table (2^24 entries) the rotating update needs
+  ~176 frames per sweep (~4.2 s at 42 fps), longer than the 4 s "outdated" threshold, so everything
+  in view was constantly re-queued. The threshold now covers the sweep time, refreshes may only use
+  half the queue, and refused pixels no longer starve creation.
+- Races: thousands of claim races per frame. A pixel could take over a slot whose new key was half
+  written (same k1, k0 not yet written), or create a duplicate of a key being created. Claims now
+  lock the slot (k1 = 1) while it is written, publish the key last, and other pixels that see a
+  lock in their window retry next frame.
+- Light list churn: 35 changes/s standing still, 300-700/s moving, each a dirty region. Light
+  merging measured distances from the exact camera position, so moving re-grouped lights; it now
+  uses the camera snapped to a 16-block grid, and the merged light's position no longer depends on
+  list order.
+

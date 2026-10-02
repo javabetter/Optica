@@ -51,6 +51,9 @@ const uint ph_cache_update_height = 192u;
 const int ph_cache_probe_length = 8;
 const uint ph_cache_none = 0xFFFFFFFFu;
 const uint ph_cache_computed_bit = 1u << 31;
+// k1 of a slot while its new key is being written (valid keys always have bit 31 set). Other pixels
+// neither match nor take a locked slot, so a half-written entry is never mistaken for another key.
+const uint ph_cache_locked = 1u;
 // Set while an entry waits in the queue for a refresh, so it is queued only once.
 const uint ph_cache_queued_bit = 1u << 30;
 // Target spacing of samples on screen. Lower is sharper but needs more samples.
@@ -124,6 +127,7 @@ struct CacheSurface {
     int axis;       // 0 = x, 1 = y, 2 = z
     int dir;        // axis * 2 + (positive ? 1 : 0)
     int level;      // lattice cells per block edge = 1 << level
+    float lod;      // continuous level of detail (level = floor(lod)), for blending to the next level
     int plane;      // 1/16 block units, or whole blocks when coarse
     bool coarse;
     vec2 lattice;   // position on the plane in lattice units (in-plane axes b and c)
@@ -133,11 +137,11 @@ ivec2 ph_cache_plane_axes(int axis) {
     return ivec2((axis + 1) % 3, (axis + 2) % 3);
 }
 
-// Lattice level (log2 of samples per block edge) for a surface seen at `distance`, where `facing` is the
-// cosine between the surface normal and the view direction. Samples are spaced about
+// Continuous level of detail (log2 of samples per block edge) for a surface seen at `distance`, where
+// `facing` is the cosine between the surface normal and the view direction. Samples are spaced about
 // ph_cache_pixels_per_sample pixels apart on screen (wider at grazing angles, where a pixel stretches
 // over more of the surface). LOD Quality below 1.0 lowers the detail further.
-int ph_cache_level_for_distance(float distance, float facing) {
+float ph_cache_lod_for_distance(float distance, float facing) {
     // Size of one screen pixel in blocks at that distance (gbufferProjection[1][1] = 1 / tan(fov / 2)).
     float pixel_size = 2.0f * distance / max(gbufferProjection[1][1] * viewHeight, 1.0f);
     pixel_size /= max(facing, 0.3f);
@@ -145,8 +149,26 @@ int ph_cache_level_for_distance(float distance, float facing) {
     float samples_per_block = 1.0f / max(pixel_size * ph_cache_pixels_per_sample, 1e-4f);
     samples_per_block *= clamp(float(PH_LOD_SCALE), 0.25f, 1.0f);
 
-    int level = int(floor(log2(max(samples_per_block, 1.0f))));
-    return clamp(level, 0, findMSB(PH_CACHE_DETAIL));
+    return clamp(log2(max(samples_per_block, 1.0f)), 0.0f, float(findMSB(PH_CACHE_DETAIL)));
+}
+
+// Pixels in the top part of a level's range blend towards the next finer level, so detail changes
+// gradually with distance instead of in visible steps (which showed up as lines across ceilings and
+// walls seen at an angle).
+const float ph_cache_level_blend_start = 0.6f;
+
+// The same surface one level finer, and how much of it to use (0 = none).
+CacheSurface ph_cache_finer(CacheSurface surface, out float weight) {
+    CacheSurface finer = surface;
+    weight = 0.0f;
+
+    if (surface.coarse || surface.level >= findMSB(PH_CACHE_DETAIL)) return finer;
+
+    weight = smoothstep(ph_cache_level_blend_start, 1.0f, surface.lod - float(surface.level));
+    finer.level = surface.level + 1;
+    finer.lod = float(finer.level);
+    finer.lattice = (surface.lattice + 0.5f) * 2.0f - 0.5f;
+    return finer;
 }
 
 CacheSurface ph_cache_surface(vec3 world_pos, vec3 normal, float distance, bool force_coarse) {
@@ -162,11 +184,13 @@ CacheSurface ph_cache_surface(vec3 world_pos, vec3 normal, float distance, bool 
 
     if (surface.coarse) {
         surface.level = 0;
+        surface.lod = 0.0f;
         surface.plane = int(floor(world_pos[surface.axis]));
     } else {
         vec3 view = world_pos - cameraPosition;
         float facing = abs(dot(normal, view)) / max(length(view), 1e-4f);
-        surface.level = ph_cache_level_for_distance(distance, facing);
+        surface.lod = ph_cache_lod_for_distance(distance, facing);
+        surface.level = int(floor(surface.lod));
         surface.plane = int(round(world_pos[surface.axis] * 16.0f));
     }
 
@@ -256,14 +280,16 @@ uint ph_cache_find(CacheKey key) {
     return ph_cache_none;
 }
 
-// Finds the entry for a key, or creates it (queued for computation this frame). Returns none when the
-// probe window is full of recently used entries; the pixel then simply has no sample this frame.
+// Finds the entry for a key, or creates it (queued for computation this frame). Returns none when it
+// cannot be done this frame (the probe window is full of recently used entries, the queue is full, or
+// another pixel is creating an entry nearby); the pixel then keeps its previous lighting and retries.
 uint ph_cache_acquire(CacheKey key) {
     uint home = ph_cache_home(key);
     uint frame = ph_cache_frame();
 
     uint candidate = ph_cache_none;
     uint candidate_k1 = 0u;
+    bool saw_lock = false;
 
     for (int p = 0; p < ph_cache_probe_length; p++) {
         uint slot = (home + uint(p)) & ph_cache_mask;
@@ -276,10 +302,22 @@ uint ph_cache_acquire(CacheKey key) {
             return slot;
         }
 
+        if (k1 == ph_cache_locked) {
+            saw_lock = true;
+            continue;
+        }
+
         if (candidate == ph_cache_none && (k1 == 0u || ph_cache_age(ph_cache[base + 2u]) > ph_cache_stale_frames)) {
             candidate = slot;
             candidate_k1 = k1;
         }
+    }
+
+    // Another pixel is writing an entry in this window, possibly for this very key: creating it here
+    // too would leave a duplicate. Try again next frame.
+    if (saw_lock) {
+        PH_PROFILE_ADD(PH_STAT_FAIL_RACE, 1);
+        return ph_cache_none;
     }
 
     if (candidate == ph_cache_none) {
@@ -296,34 +334,33 @@ uint ph_cache_acquire(CacheKey key) {
     }
 
     uint base = ph_cache_base(candidate);
-    uint previous = atomicCompSwap(ph_cache[base + 1u], candidate_k1, key.k1);
+    if (atomicCompSwap(ph_cache[base + 1u], candidate_k1, ph_cache_locked) != candidate_k1) {
+        PH_PROFILE_ADD(PH_STAT_FAIL_RACE, 1);
+        return ph_cache_none;
+    }
 
-    if (previous == candidate_k1) {
-        // Claimed: reset the entry and queue it for computation.
-        ph_cache[base] = key.k0;
-        ph_cache[base + 2u] = frame;
-        ph_cache[base + 3u] = 0u;
-        ph_cache[base + 4u] = 0u;
-        ph_cache[base + 5u] = 0u;
-        ph_cache[base + 6u] = 0u;
-        ph_cache[base + 7u] = 0u;
-
-        uint index = atomicAdd(ph_cache_state[parity], 1u);
-        if (index < ph_cache_queue_max) {
-            ph_cache_state[ph_cache_state_header + index] = candidate;
-            PH_PROFILE_ADD(PH_STAT_CREATED, 1);
-            return candidate;
-        }
-
-        // Lost the race for the last queue places: give the slot back and retry next frame.
-        ph_cache[base + 1u] = 0u;
+    // Locked: reserve a queue place, write the entry, then publish the key.
+    uint index = atomicAdd(ph_cache_state[parity], 1u);
+    if (index >= ph_cache_queue_max) {
+        atomicExchange(ph_cache[base + 1u], 0u);
         PH_PROFILE_ADD(PH_STAT_FAIL_OVERFLOW, 1);
         return ph_cache_none;
     }
 
-    // Another pixel claimed the slot at the same time, most likely for the same key.
-    PH_PROFILE_ADD(PH_STAT_FAIL_RACE, 1);
-    return previous == key.k1 ? candidate : ph_cache_none;
+    ph_cache[base] = key.k0;
+    ph_cache[base + 2u] = frame;
+    ph_cache[base + 3u] = 0u;
+    ph_cache[base + 4u] = 0u;
+    ph_cache[base + 5u] = 0u;
+    ph_cache[base + 6u] = 0u;
+    ph_cache[base + 7u] = 0u;
+    ph_cache_state[ph_cache_state_header + index] = candidate;
+
+    memoryBarrierBuffer();
+    atomicExchange(ph_cache[base + 1u], key.k1);
+
+    PH_PROFILE_ADD(PH_STAT_CREATED, 1);
+    return candidate;
 }
 
 bool ph_cache_is_computed(uint slot) {
@@ -340,13 +377,17 @@ void ph_cache_load(uint slot, out vec3 direct, out vec3 indirect) {
     indirect = vec3(d_b_i_r.y, i_gb);
 }
 
-// True when a computed entry is older than twice the refresh time. Entries in view are refreshed by the
-// rotating update anyway; this catches the ones that were out of view (skipped) and are seen again.
+// True when a computed entry is older than twice the time the rotating update takes to visit the whole
+// table (the refresh time, or longer for large tables, since it visits at most one update grid of
+// entries per frame). Entries in view are refreshed by the rotating update anyway; this catches the
+// ones that were out of view (skipped) and are seen again.
 bool ph_cache_is_outdated(uint slot) {
     uint last = ph_cache[ph_cache_base(slot) + 7u];
     if ((last & ph_cache_computed_bit) == 0u) return false;
 
-    float max_frames = 2.0f * float(PH_CACHE_REFRESH_SECONDS) / max(frameTime, 0.001f);
+    float refresh_frames = float(PH_CACHE_REFRESH_SECONDS) / max(frameTime, 0.001f);
+    float sweep_frames = float(ph_cache_capacity) / float(ph_cache_update_width * ph_cache_update_height);
+    float max_frames = 2.0f * max(refresh_frames, sweep_frames);
     return float(ph_cache_age(last & ~ph_cache_computed_bit)) > max_frames;
 }
 
@@ -379,11 +420,12 @@ bool ph_cache_predates_change(uint slot, uint dirty_age) {
     return age > dirty_age && age >= ph_cache_dirty_min_frames;
 }
 
-// Queues an existing entry to be recomputed this frame (once, however many pixels ask).
+// Queues an existing entry to be recomputed this frame (once, however many pixels ask). Refreshes may
+// only use the first half of the queue, so new entries always find room.
 void ph_cache_request_refresh(uint slot) {
     uint base = ph_cache_base(slot);
     uint parity = ph_cache_parity();
-    if (ph_cache_state[parity] >= ph_cache_queue_max) {
+    if (ph_cache_state[parity] >= ph_cache_queue_max / 2u) {
         PH_PROFILE_ADD(PH_STAT_REFRESH_REJECTED, 1);
         return;
     }

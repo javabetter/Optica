@@ -11,6 +11,9 @@ Optica: Photonics ported to Minecraft 26.1.2 (Fabric), with Euphoria Patches sup
 - Areas you look back at after a while are updated immediately, and the result is blended over a few frames, so refreshes and detail changes no longer pop.
 - Placing or breaking blocks and lights updates the cached lighting around them within a few frames, instead of patch by patch over the refresh time.
 - Lighting no longer drops out or shows lines when samples are briefly unavailable: those pixels keep their previous lighting until the new samples are in.
+- Fixed lines across ceilings and walls with the lighting cache: detail now changes gradually with distance instead of in steps.
+- Fixed cached lights that stopped loading or never finished: background refreshes can no longer crowd out new samples, and large cache memory sizes no longer cause constant re-refreshing.
+- Light merging no longer re-groups lights at every step you take.
 - New diagnostics on the Lighting Cache Settings page: a **Profiler** that logs what the cache does to `optica-profile.log`, and a **Debug View** that colours the lighting by cache state or detail level.
 
 **New in 0.3.0**

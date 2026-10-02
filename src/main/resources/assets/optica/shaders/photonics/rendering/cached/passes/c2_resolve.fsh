@@ -25,6 +25,7 @@ const float ph_cache_history_blend = 0.3f;
 #endif
 
 uniform usampler2D cache_slots;
+uniform usampler2D cache_slots_fine;
 uniform sampler2D prev_sharp_direct;
 uniform sampler2D prev_cached_indirect;
 
@@ -79,27 +80,12 @@ bool load_history(out vec3 direct, out vec3 indirect) {
     return true;
 }
 
-void main() {
-    sharp_direct_out = vec4(0.0f);
-    cached_indirect_out = vec4(0.0f);
-
-    setup_frag_data(0);
-    if (!frag_is_in_world) return;
-
-    CacheSurface surface = ph_cache_pixel_surface();
-
+// Adds the computed samples around the pixel on `surface` (scaled by `scale`) to the sums.
+void accumulate(CacheSurface surface, uvec4 slots, float scale, inout vec3 direct, inout vec3 indirect, inout float weight_sum) {
     ivec2 cells[4];
     vec4 weights;
     ph_cache_corners(surface, cells, weights);
-
-    uvec4 slots = texelFetch(cache_slots, frag_tex_coord, 0);
-
-    vec3 direct = vec3(0.0f);
-    vec3 indirect = vec3(0.0f);
-    float weight_sum = 0.0f;
-
-    PH_PROFILE_MAX(PH_STAT_VIEW_W_MAX, uint(gl_FragCoord.x) + 1u);
-    PH_PROFILE_MAX(PH_STAT_VIEW_H_MAX, uint(gl_FragCoord.y) + 1u);
+    weights *= scale;
 
     for (int i = 0; i < 4; i++) {
         if (weights[i] <= 0.0f) continue;
@@ -126,6 +112,30 @@ void main() {
         indirect += sample_indirect * weights[i];
         weight_sum += weights[i];
     }
+}
+
+void main() {
+    sharp_direct_out = vec4(0.0f);
+    cached_indirect_out = vec4(0.0f);
+
+    setup_frag_data(0);
+    if (!frag_is_in_world) return;
+
+    CacheSurface surface = ph_cache_pixel_surface();
+
+    float finer_weight;
+    CacheSurface finer = ph_cache_finer(surface, finer_weight);
+
+    vec3 direct = vec3(0.0f);
+    vec3 indirect = vec3(0.0f);
+    float weight_sum = 0.0f;
+
+    PH_PROFILE_MAX(PH_STAT_VIEW_W_MAX, uint(gl_FragCoord.x) + 1u);
+    PH_PROFILE_MAX(PH_STAT_VIEW_H_MAX, uint(gl_FragCoord.y) + 1u);
+
+    accumulate(surface, texelFetch(cache_slots, frag_tex_coord, 0), 1.0f - finer_weight, direct, indirect, weight_sum);
+    if (finer_weight > 0.0f)
+        accumulate(finer, texelFetch(cache_slots_fine, frag_tex_coord, 0), finer_weight, direct, indirect, weight_sum);
 
     // The corner weights add up to 1, so weight_sum is the share of the pixel the cache covers.
     float coverage = clamp(weight_sum, 0.0f, 1.0f);
@@ -186,7 +196,8 @@ void main() {
 #elif PH_CACHE_DEBUG_VIEW == 2
     // Detail level: red = 1 sample per block edge, yellow = 2, green = 4, cyan = 8, blue = coarse.
     const vec3 level_colors[4] = vec3[](vec3(1.0f, 0.1f, 0.1f), vec3(1.0f, 0.9f, 0.1f), vec3(0.1f, 1.0f, 0.1f), vec3(0.1f, 1.0f, 1.0f));
-    vec3 level_color = surface.coarse ? vec3(0.2f, 0.3f, 1.0f) : level_colors[clamp(surface.level, 0, 3)];
+    vec3 level_color = surface.coarse ? vec3(0.2f, 0.3f, 1.0f)
+                     : mix(level_colors[clamp(surface.level, 0, 3)], level_colors[clamp(finer.level, 0, 3)], finer_weight);
     sharp_direct_out = vec4(level_color * 2.0f, 1.0f);
     cached_indirect_out = vec4(0.0f, 0.0f, 0.0f, 1.0f);
 #endif

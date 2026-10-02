@@ -46,7 +46,7 @@ public class CachedPipeline extends PhotonicsPipeline {
         if (cachedProperties.isProfiling()) {
             registerComponent(new CacheProfiler(cache, String.format(java.util.Locale.ROOT,
                     "settings: detail=%d memory=%dMB (2^%d entries) refresh=%.2fs giRays=%d combinedGi=%b maxSamples=%d "
-                            + "renderScale=%.2f gi=%b lodScale=%.3f maxLights=%d debugView=%d",
+                            + "renderScale=%.2f gi=%b lodScale=%.3f lightMerging=%d shadowUpdateInterval=%d maxLights=%d debugView=%d",
                     cachedProperties.getDetail(),
                     (int) (((1L << cachedProperties.getCapacityLog2()) * SurfaceCache.ENTRY_UINTS * 4) >> 20),
                     cachedProperties.getCapacityLog2(),
@@ -57,6 +57,8 @@ public class CachedPipeline extends PhotonicsPipeline {
                     phProperties.getRenderScale(),
                     phProperties.getGiProperties().isEnabled(),
                     phProperties.getOptimizationProperties().getLodScale(),
+                    phProperties.getOptimizationProperties().getLightMerging(),
+                    phProperties.getOptimizationProperties().getShadowUpdateInterval(),
                     phProperties.getLightListProperties().getSize(),
                     cachedProperties.getDebugView()
             )));
@@ -71,6 +73,7 @@ public class CachedPipeline extends PhotonicsPipeline {
     private void cachePipeline(PhotonicsProperties phProperties, CachedProperties cachedProperties, IrisPipeline irisPipeline) {
         var slots = irisPipeline.newFramebuffer(phProperties.getRenderScale())
                 .addAttachment("cache_slots", ITextureFormat.rgba32ui(), CREATE_SAMPLER)
+                .addAttachment("cache_slots_fine", ITextureFormat.rgba32ui(), CREATE_SAMPLER)
                 .build(this::registerComponent);
 
         var update = irisPipeline.newFramebuffer(UPDATE_WIDTH, UPDATE_HEIGHT)

@@ -38,16 +38,17 @@ Each line averages about one second. "Per frame" means divided by `gpuFrames`.
 | `lights` | Lights in the light list. |
 | `pixels` | Pixels per frame that show the world. |
 | `level0/1/2/3/coarse%` | Share of pixels using 1 / 2 / 4 / 8 samples per block edge, or one sample per block. |
+| `blended%` | Share of pixels blending towards the next finer level (near a level change). |
 | `samples` | Cache samples looked up per frame (up to 4 per pixel). |
 | `found%` | Share of those already in the cache. |
 | `created` | New samples created and queued per frame. |
 | `failProbe` | Lookups that found no free place nearby in the table (table too full). |
 | `failQueue` | New samples refused because this frame's queue (65536) was full. |
-| `failRace` | Two pixels tried to create a sample in the same place at the same time. |
+| `failRace` | Another pixel was creating a sample in the same place at the same time (retried next frame). |
 | `failOverflow` | Created, then refused because the queue filled up at the same moment. |
 | `refreshOutdated` | Requests (per pixel corner, not unique) to recompute samples seen again after a while out of view. |
 | `refreshDirty` | Requests to recompute samples older than a nearby block or light change. |
-| `refreshRejected` | Recompute requests refused because the queue was full. |
+| `refreshRejected` | Recompute requests refused because the queue's refresh share (half) was full. |
 | `queueAsked`, `queueDone` | Queue entries asked for and computed per frame (asked > done means overflow). |
 | `budget` | Background refresh slots per frame. |
 | `cursorComputed` | Samples the background refresh recomputed per frame. |

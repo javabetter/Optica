@@ -32,7 +32,8 @@ public final class CacheProfiler implements RenderingComponent {
             REFRESH_REJECTED = 11, LEVEL0 = 12, COARSE = 16, QUEUE_REQUESTED = 17, QUEUE_PROCESSED = 18,
             BUDGET = 19, CURSOR_EMPTY = 20, CURSOR_IDLE = 21, CURSOR_COMPUTED = 22, ZERO_DIRECT = 23,
             BINS_MISS = 24, COVERED = 25, PARTIAL = 26, UNCOVERED = 27, HISTORY = 28, FALLBACK = 29,
-            SLOT_NONE = 30, SLOT_MISMATCH = 31, NOT_COMPUTED = 32, LIGHTS_MAX = 33, VIEW_W = 34, VIEW_H = 35;
+            SLOT_NONE = 30, SLOT_MISMATCH = 31, NOT_COMPUTED = 32, LIGHTS_MAX = 33, VIEW_W = 34, VIEW_H = 35,
+            BLENDED = 36;
     private static final int COUNTERS = 64;
     private static final int BYTES = COUNTERS * Integer.BYTES;
 
@@ -152,10 +153,10 @@ public final class CacheProfiler implements RenderingComponent {
         line.append(String.format(Locale.ROOT, "t=%s fps=%.0f maxFrameMs=%.1f gpuFrames=%d view=%dx%d lights=%d",
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")),
                 pendingCpuFrames / Math.max(pendingSeconds, 1e-3), pendingMaxFrameMs, c[FRAMES], c[VIEW_W], c[VIEW_H], c[LIGHTS_MAX]));
-        line.append(String.format(Locale.ROOT, " | pixels=%.0f level0/1/2/3/coarse%%=%.0f/%.0f/%.0f/%.0f/%.0f",
+        line.append(String.format(Locale.ROOT, " | pixels=%.0f level0/1/2/3/coarse%%=%.0f/%.0f/%.0f/%.0f/%.0f blended%%=%.0f",
                 c[PIXELS] / frames,
                 100 * c[LEVEL0] / pixels, 100 * c[LEVEL0 + 1] / pixels, 100 * c[LEVEL0 + 2] / pixels, 100 * c[LEVEL0 + 3] / pixels,
-                100 * c[COARSE] / pixels));
+                100 * c[COARSE] / pixels, 100 * c[BLENDED] / pixels));
         line.append(String.format(Locale.ROOT, " | samples=%.0f found%%=%.2f created=%.0f failProbe=%.0f failQueue=%.0f failRace=%.0f failOverflow=%.0f",
                 c[CORNERS] / frames, 100 * c[FOUND] / corners, c[CREATED] / frames,
                 c[FAIL_PROBE] / frames, c[FAIL_QUEUE] / frames, c[FAIL_RACE] / frames, c[FAIL_OVERFLOW] / frames));

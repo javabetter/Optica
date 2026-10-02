@@ -54,8 +54,20 @@ final class LightClusterer {
     private record Key(int cellSize, int x, int y, int z, int blockId, BlockLightInfo lightInfo) {
     }
 
+    /** Merge cells are chosen from the camera position snapped to this grid (blocks). */
+    private static final int CAMERA_SNAP = 16;
+
     static TracedLightPosition[] cluster(TracedLightPosition[] lights, Vector3d camera, LightMerging merging, int maxLights) {
         if (!merging.isEnabled()) return lights;
+
+        // With the exact camera position, every step re-grouped some lights near a distance threshold,
+        // and each re-grouping moved light around (the cached lighting mode recomputes it each time).
+        // A snapped position only changes the grouping when the camera crosses a grid line.
+        camera = new Vector3d(
+                (Math.floor(camera.x / CAMERA_SNAP) + 0.5) * CAMERA_SNAP,
+                (Math.floor(camera.y / CAMERA_SNAP) + 0.5) * CAMERA_SNAP,
+                (Math.floor(camera.z / CAMERA_SNAP) + 0.5) * CAMERA_SNAP
+        );
 
         // Coarsen further while the result would not fit the light budget: the lights that get dropped
         // otherwise are the distant ones, and merging them loses less than dropping them.
@@ -113,6 +125,12 @@ final class LightClusterer {
         return result.toArray(TracedLightPosition[]::new);
     }
 
+    private static boolean isLower(Vector3d a, Vector3d b) {
+        if (a.x != b.x) return a.x < b.x;
+        if (a.y != b.y) return a.y < b.y;
+        return a.z < b.z;
+    }
+
     private static TracedLightPosition merge(List<TracedLightPosition> group, float gainExponent) {
         var centre = new Vector3d();
         for (var light : group) centre.add(light.pos());
@@ -123,7 +141,9 @@ final class LightClusterer {
 
         for (var light : group) {
             double distance = light.pos().distanceSquared(centre);
-            if (distance < bestDistance) {
+            // Ties go to the lowest position, so the choice does not depend on the order of the list
+            // (which changes whenever a chunk section is reloaded).
+            if (distance < bestDistance - 1e-9 || (Math.abs(distance - bestDistance) <= 1e-9 && isLower(light.pos(), representative.pos()))) {
                 bestDistance = distance;
                 representative = light;
             }

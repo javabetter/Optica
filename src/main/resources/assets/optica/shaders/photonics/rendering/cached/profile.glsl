@@ -40,7 +40,8 @@
 #define PH_STAT_LIGHTS_MAX         33   // max light_list_size seen
 #define PH_STAT_VIEW_W_MAX         34   // max framebuffer width seen (cache resolution)
 #define PH_STAT_VIEW_H_MAX         35
-#define PH_STAT_COUNT              36
+#define PH_STAT_BLENDED            36   // c0: pixels blending towards the next finer level
+#define PH_STAT_COUNT              37
 
 #if defined PH_CACHE_PROFILE
 layout (std430) restrict buffer ph_surface_cache_profile {
