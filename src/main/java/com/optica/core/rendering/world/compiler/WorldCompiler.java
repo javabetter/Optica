@@ -28,6 +28,8 @@ import org.joml.Vector3f;
 import org.joml.Vector3i;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.concurrent.CompletableFuture;
@@ -58,6 +60,10 @@ public class WorldCompiler implements Runnable, RenderingComponent {
     // they reach the GPU (the cached lighting mode recomputes lighting around them).
     private final List<Vector3i> writtenSections = new ArrayList<>();
     private volatile Consumer<List<Vector3i>> sectionUploadListener = null;
+    // Optica: block hash of every loaded section (compiler thread only). Sections are often rebuilt with
+    // the same blocks (sky light spreading after a chunk loads, neighbour updates); only real block
+    // changes and newly loaded sections are reported.
+    private final Map<Vector3i, Long> sectionBlockHashes = new HashMap<>();
 
     private final ReentrantLock uploadLock = new ReentrantLock();
     private final Condition uploadDone = uploadLock.newCondition();
@@ -128,8 +134,11 @@ public class WorldCompiler implements Runnable, RenderingComponent {
 
                 var builtSections = taskQueue.drain(MAX_SECTIONS_PER_RUN);
                 List<Vector3i> batch = new ArrayList<>(builtSections.size());
-                for (var section : builtSections)
-                    batch.add(new Vector3i(section.chunkBlockPos()));
+                for (var section : builtSections) {
+                    Long previous = sectionBlockHashes.put(new Vector3i(section.chunkPos()), section.blockHash());
+                    if (previous == null || previous != section.blockHash())
+                        batch.add(new Vector3i(section.chunkBlockPos()));
+                }
 
                 if (!builtSections.isEmpty()) {
                     recenter();
@@ -158,6 +167,8 @@ public class WorldCompiler implements Runnable, RenderingComponent {
     // Compiler steps
 
     private void clearUnloadedSections(List<Vector3i> unloadedSections) {
+        for (var section : unloadedSections) sectionBlockHashes.remove(section);
+
         if (iorigin == null) return;
 
         IntSet regions = new IntOpenHashSet(unloadedSections.size());

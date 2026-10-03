@@ -71,7 +71,9 @@ public final class OpticaSettings {
     /** @param options looks up an option's current value (as Iris stores it), or null if unknown */
     public OpticaSettings(Function<String, String> options) {
         lightingCache = "1".equals(trim(options.apply(LIGHTING_CACHE)));
-        cacheRefreshSeconds = clamp(parseFloat(options.apply(CACHE_REFRESH), 1.0f), 0.1f, 30.0f);
+        float refresh = parseFloat(options.apply(CACHE_REFRESH), 0.0f);
+        // 0 = only on changes (no timed refresh).
+        cacheRefreshSeconds = refresh < 0.1f ? 0.0f : Math.min(refresh, 30.0f);
         cacheDetail = Integer.highestOneBit(clamp(parseInt(options.apply(CACHE_DETAIL), 4), 1, 8));
         cacheMemoryMb = clamp(parseInt(options.apply(CACHE_MEMORY), 64), 16, 512);
         cacheGiSamples = clamp(parseInt(options.apply(CACHE_GI_SAMPLES), 0), 0, 8);
@@ -195,15 +197,17 @@ public final class OpticaSettings {
 
         t.put("option." + LIGHTING_CACHE, "Lighting Cache");
         t.put("option." + LIGHTING_CACHE + ".comment",
-                "Optica: computes lighting per block face and reuses it, refreshed in the background, instead of every frame. "
-                        + "Much cheaper; light and block changes appear after the refresh time, and entities cast no raytraced shadows. "
+                "Optica: computes lighting per block face and reuses it instead of every frame, recomputing it where blocks or lights change. "
+                        + "Much cheaper; entities cast no raytraced shadows. "
                         + "Replaces the lighting mode above while on.");
         t.put("value." + LIGHTING_CACHE + ".0", "Off");
         t.put("value." + LIGHTING_CACHE + ".1", "On");
 
         t.put("option." + CACHE_REFRESH, "Refresh Time");
         t.put("option." + CACHE_REFRESH + ".comment",
-                "Seconds to recompute all cached lighting once. Lower reacts faster to changes, higher is cheaper.");
+                "Only on Changes (default): cached lighting is recomputed only where blocks or lights change. "
+                        + "A time also recomputes all cached lighting once per that many seconds (costs performance; only needed if lighting looks outdated).");
+        t.put("value." + CACHE_REFRESH + ".0.0", "Only on Changes");
         for (String v : List.of("0.25", "0.5", "1.0", "2.0", "3.0", "5.0", "10.0"))
             t.put("value." + CACHE_REFRESH + "." + v, (v.endsWith(".0") ? v.substring(0, v.length() - 2) : v) + " s");
 

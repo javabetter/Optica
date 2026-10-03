@@ -1,8 +1,8 @@
 #version 430
 
 // Optica cached lighting, pass 2 of 4: compute cache samples. Runs on a fixed 512 x 192 grid, one
-// sample per pixel: first the samples created this frame, then a slice of the table so that every
-// sample in use is recomputed about once per PH_CACHE_REFRESH_SECONDS.
+// sample per pixel: first the samples created this frame, then (with a Refresh Time set) a slice of the
+// table so that every sample in use is recomputed about once per PH_CACHE_REFRESH_SECONDS.
 
 #include "/photonics/rendering/frag/common.glsl"
 #include "/photonics/rendering/indirect_lighting.glsl"
@@ -12,7 +12,7 @@
 //ph_required: uniform float frameTime;
 
 #ifndef PH_CACHE_REFRESH_SECONDS
-#define PH_CACHE_REFRESH_SECONDS 1.0
+#define PH_CACHE_REFRESH_SECONDS 0.0
 #endif
 
 #ifndef PH_CACHE_GI_SAMPLES
@@ -65,7 +65,10 @@ void main() {
 
     // The share of the table to revisit this frame, so all of it is covered once per refresh period.
     uint threads = ph_cache_update_width * ph_cache_update_height;
-    uint budget = uint(ceil(float(ph_cache_capacity) * clamp(frameTime, 0.0f, 1.0f) / float(PH_CACHE_REFRESH_SECONDS)));
+    // Refresh Time "Only on Changes" (0): no timed refresh, samples are recomputed only after a change.
+    uint budget = PH_CACHE_REFRESH_SECONDS > 0.0
+        ? uint(ceil(float(ph_cache_capacity) * clamp(frameTime, 0.0f, 1.0f) / float(PH_CACHE_REFRESH_SECONDS)))
+        : 0u;
     budget = min(budget, threads - min(new_count, threads));
 
     uint cursor = ph_cache_state[2u + parity];

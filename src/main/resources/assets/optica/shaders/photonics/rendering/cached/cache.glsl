@@ -35,7 +35,7 @@
 #endif
 
 #ifndef PH_CACHE_REFRESH_SECONDS
-#define PH_CACHE_REFRESH_SECONDS 1.0
+#define PH_CACHE_REFRESH_SECONDS 0.0
 #endif
 
 const uint ph_cache_capacity = 1u << PH_CACHE_CAPACITY_LOG2;
@@ -384,6 +384,9 @@ void ph_cache_load(uint slot, out vec3 direct, out vec3 indirect) {
 // entries per frame). Entries in view are refreshed by the rotating update anyway; this catches the
 // ones that were out of view (skipped) and are seen again.
 bool ph_cache_is_outdated(uint slot) {
+    // Only on Changes: nothing goes out of date by time alone (changes are the dirty regions).
+    if (PH_CACHE_REFRESH_SECONDS <= 0.0) return false;
+
     uint last = ph_cache[ph_cache_base(slot) + 7u];
     if ((last & ph_cache_computed_bit) == 0u) return false;
 

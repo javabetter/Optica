@@ -50,9 +50,9 @@ Each line averages about one second. "Per frame" means divided by `gpuFrames`.
 | `refreshDirty` | Requests to recompute samples older than a nearby block or light change. |
 | `refreshRejected` | Recompute requests refused because the queue's refresh share (half) was full. |
 | `queueAsked`, `queueDone` | Queue entries asked for and computed per frame (asked > done means overflow). |
-| `budget` | Background refresh slots per frame. |
+| `budget` | Background refresh slots per frame (0 with Refresh Time "Only on Changes"). |
 | `cursorComputed` | Samples the background refresh recomputed per frame. |
-| `tableUsed%` | Estimated share of the table in use (from the background refresh's visits). |
+| `tableUsed%` | Estimated share of the table in use (from the background refresh's visits; needs a Refresh Time). |
 | `zeroDirect` | Samples computed with no direct light at all (normal far from lights; suspicious near them). |
 | `binsMiss` | Light lookups outside the light grid (lights there are ignored). |
 | `noLightList` | Samples computed while the light list was empty. |
@@ -62,9 +62,9 @@ Each line averages about one second. "Per frame" means divided by `gpuFrames`.
 | `rayOutOfSteps%` | Shadow rays that gave up before reaching the light (counted as shadow; should be ~0). |
 | `rayLeftWorld%`, `rayMissed%` | Shadow rays that left the voxel world / ended without hitting anything (should be ~0). |
 | `covered%`, `partial%`, `uncovered%` | Pixels with all / some / none of their samples available. |
-| `history%` | Pixels that could reuse the previous frame's lighting. |
+| `history%` | Pixels with missing samples that could reuse the previous frame's lighting. |
 | `standIn%` | Pixels using the stand-in lighting (no samples and no history). |
 | `slotNone` | Samples per frame that could not be created or found (see the `fail*` columns). |
 | `slotMismatch` | Samples whose place was taken by another sample between passes. |
 | `notComputed` | Samples that exist but are not computed yet. |
-| `sectionsUploaded`, `lightsChanged`, `dirtyRegions` | World sections and lights that changed in the window, and the change regions created from them. |
+| `sectionsUploaded`, `lightsChanged`, `dirtyRegions` | World sections whose blocks changed (or that loaded) and lights that changed in the window, and the change regions created from them. |

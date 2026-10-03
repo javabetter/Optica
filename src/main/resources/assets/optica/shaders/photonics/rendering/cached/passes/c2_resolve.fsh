@@ -146,7 +146,8 @@ void main() {
     // The hand moves with the camera; its lighting is a single coarse sample and needs no smoothing.
     vec3 history_direct;
     vec3 history_indirect;
-    bool has_history = !frag_is_hand && load_history(history_direct, history_indirect);
+    // Only needed where samples are missing; fully covered pixels skip the reprojection.
+    bool has_history = !frag_is_hand && coverage < 0.999f && load_history(history_direct, history_indirect);
 
     if (coverage >= 0.999f) PH_PROFILE_ADD(PH_STAT_COVERED, 1);
     else if (coverage > 0.0f) PH_PROFILE_ADD(PH_STAT_PARTIAL, 1);

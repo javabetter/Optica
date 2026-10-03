@@ -18,6 +18,9 @@ Optica: Photonics ported to Minecraft 26.1.2 (Fabric), with Euphoria Patches sup
 - Fixed lights going dark for several seconds (often after walking a few blocks): shadow rays gave up too early on long paths through detailed builds and counted as shadowed. The lighting cache now allows 256 steps per shadow ray, and Sharp mode is back to Photonics' 100.
 - Fixed remaining lines with the lighting cache when looking or moving sideways: fully cached pixels no longer blend with a re-sampled previous frame.
 - Fixed thin lines of light and shadow that stayed in the same place on screen when Photonics' Render Scale is below 1.0 (in every lighting mode, most visible with the lighting cache): positions were rebuilt from a neighbouring pixel's depth, putting them slightly above or below the surface.
+- Cached lighting no longer refreshes on its own: **Refresh Time** has a new default, **Only on Changes**, which recomputes lighting only where blocks or lights change. The timed refresh is still available.
+- Fixed cached lighting re-lighting large areas for no visible reason: chunks rebuilt without block changes (sky light updates, neighbour updates) no longer count as changes, and changes reported together (walking into new chunks) no longer merge into one region covering everything in between.
+- Faster lighting cache: Screen Space GI traces new paths every other frame nearby and less often further away, even with LOD Quality at 1.0, and fully cached pixels skip re-reading the previous frame.
 - New diagnostics on the Lighting Cache Settings page: a **Profiler** that logs what the cache does to `optica-profile.log`, and a **Debug View** that colours the lighting by cache state or detail level.
 
 **New in 0.3.0**

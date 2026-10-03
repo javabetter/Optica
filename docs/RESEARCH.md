@@ -543,3 +543,22 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   Cached direct light is deterministic, GI is screen space now, and world changes are handled by dirty
   regions, so fully covered pixels now skip the blend; history only fills missing samples.
 
+
+**Lighting cache: third user profile (render scale 0.65; lag, constant re-lighting)**
+- Screen-fixed lines: below render scale 1 the pack's `load_world_position()` reads depth at the full
+  resolution pixel `round(p / scale)` but uses the low resolution texel centre as screen position, up
+  to ~0.8 px apart in a fixed pattern. Positions landed off the surface (40% of pixels more than 1/64
+  block in a test scene) and flipped the cache's 1/16 block plane. f0 now moves the position to the
+  screen position its depth came from (0.04% off afterwards).
+- `rayOutOfSteps%` was 0.00 throughout, so the 256 step shadow rays are not wasting work.
+- Screen Space GI cost: ~33 fps against ~45 fps with 2-ray cached GI. With LOD Quality 1.0 the legacy
+  GI traced every pixel every frame; in cache mode it is now always interleaved by distance.
+- Re-lighting: 20-290 sections per second were reported as changed while idle. Most were rebuilds
+  with identical blocks (the compiler's own duplicate check includes sky light). The world compiler
+  now reports a section only when its block-only hash changes or it loads. When over 32 regions
+  arrived in one frame (walking into new chunks), they became a single union box over everything in
+  between, re-queueing up to 1.3M samples per frame; regions are now grouped by area and the closest
+  pair merged when over 64, never dropped.
+- Refresh Time defaults to "Only on Changes" (0): no rotating refresh and no "outdated" re-queue;
+  samples are recomputed only through dirty regions. Verified: a wall placed next to the End fountain
+  torches casts its shadow, and removing it restores the lighting.

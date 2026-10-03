@@ -67,7 +67,15 @@ void main() {
     // further away (interleaved over a 4x4 tile); in between the accumulated history is reused. Pixels
     // with little history (just revealed) always trace.
     float distance = ph_lod_distance(frag_player_pos);
-    int interval = !ph_lod_enabled ? 1 : distance < 48.0f ? 2 : distance < 96.0f ? 4 : 8;
+    bool interleave = ph_lod_enabled;
+#ifdef PH_CACHE_DETAIL
+    // Lighting cache: the mode is about speed, so GI is always interleaved (by real distance when LOD
+    // Quality is 1.0). Its history already averages 32 paths, so this mostly shows as slightly slower
+    // GI changes.
+    if (!ph_lod_enabled) distance = length(frag_player_pos);
+    interleave = true;
+#endif
+    int interval = !interleave ? 1 : distance < 48.0f ? 2 : distance < 96.0f ? 4 : 8;
     ivec2 pixel = ivec2(gl_FragCoord.xy);
     int phase = (pixel.x & 3) | ((pixel.y & 3) << 2);
 

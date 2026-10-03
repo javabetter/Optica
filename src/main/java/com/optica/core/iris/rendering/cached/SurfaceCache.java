@@ -12,9 +12,10 @@ import org.joml.Vector3i;
 import org.joml.Vector4f;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The GPU storage of the cached lighting mode: a hash table of lighting samples on block faces, and a
@@ -33,7 +34,7 @@ public final class SurfaceCache implements RenderingComponent {
     public static final int STATE_HEADER_UINTS = 4;
     public static final int QUEUE_MAX = 65536;
 
-    /** Dirty regions kept on the GPU (newest first replace the oldest). Must match cache.glsl. */
+    /** Dirty regions kept on the GPU (beyond that, the closest ones are merged). Must match cache.glsl. */
     public static final int DIRTY_MAX = 64;
     private static final int DIRTY_BOX_INTS = 8;
     private static final int DIRTY_HEADER_INTS = 4;
@@ -61,7 +62,7 @@ public final class SurfaceCache implements RenderingComponent {
 
     /** Regions (min xyz, max xyz in blocks) reported since the last frame. */
     private final List<int[]> pending = new ArrayList<>();
-    private final ArrayDeque<DirtyBox> boxes = new ArrayDeque<>();
+    private final List<DirtyBox> boxes = new ArrayList<>();
 
     public SurfaceCache(int capacityLog2) {
         var device = IRenderSystem.getDevice();
@@ -104,30 +105,92 @@ public final class SurfaceCache implements RenderingComponent {
     @Override
     public void onFrameBegin() {
         frame = (frame + 1) % FRAME_PERIOD;
-        if (pending.isEmpty()) return;
 
-        // Joining a world uploads hundreds of sections and lights at once: one box around them all.
-        if (pending.size() > DIRTY_MAX / 2) {
-            int[] union = {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
-            for (var box : pending)
-                for (int i = 0; i < 3; i++) {
-                    union[i] = Math.min(union[i], box[i]);
-                    union[i + 3] = Math.max(union[i + 3], box[i + 3]);
-                }
-            addBox(union);
-        } else {
-            pending.forEach(this::addBox);
+        // Frame stamps wrap at FRAME_PERIOD; a box older than half of it would read as recent again.
+        boolean expired = boxes.removeIf(box -> age(box.frame()) > FRAME_PERIOD / 2);
+        if (pending.isEmpty() && !expired) return;
+
+        // Joining a world or walking into new chunks reports hundreds of sections at once: group them
+        // by area first, so far apart changes do not become one box over everything in between.
+        List<int[]> grouped = pending;
+        for (int cell = 64; grouped.size() > DIRTY_MAX / 2; cell *= 2)
+            grouped = groupByCell(grouped, cell);
+
+        for (var box : grouped) {
+            boxes.add(new DirtyBox(box[0], box[1], box[2], box[3], box[4], box[5], frame));
+            regionsAdded++;
         }
-
         pending.clear();
+
+        // Over the limit, merge the two boxes whose union adds the least volume (keeping the newer
+        // stamp). Boxes are never dropped: samples in one that were out of view would stay outdated.
+        while (boxes.size() > DIRTY_MAX) mergeClosestPair();
+
         upload();
     }
 
-    private void addBox(int[] box) {
-        boxes.addFirst(new DirtyBox(box[0], box[1], box[2], box[3], box[4], box[5], frame));
-        regionsAdded++;
+    private int age(int stamp) {
+        return Math.floorMod(frame - stamp, FRAME_PERIOD);
+    }
 
-        while (boxes.size() > DIRTY_MAX) boxes.removeLast();
+    private static List<int[]> groupByCell(List<int[]> input, int cell) {
+        Map<Long, int[]> cells = new HashMap<>();
+        for (var box : input) {
+            long cx = Math.floorDiv((box[0] + box[3]) >> 1, cell);
+            long cy = Math.floorDiv((box[1] + box[4]) >> 1, cell);
+            long cz = Math.floorDiv((box[2] + box[5]) >> 1, cell);
+            long key = (cx & 0x1FFFFF) | ((cy & 0x1FFFFF) << 21) | ((cz & 0x1FFFFF) << 42);
+            cells.merge(key, box.clone(), SurfaceCache::union);
+        }
+        return new ArrayList<>(cells.values());
+    }
+
+    private static int[] union(int[] a, int[] b) {
+        return new int[] {
+                Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.min(a[2], b[2]),
+                Math.max(a[3], b[3]), Math.max(a[4], b[4]), Math.max(a[5], b[5])
+        };
+    }
+
+    private static double volume(int minX, int minY, int minZ, int maxX, int maxY, int maxZ) {
+        return (double) (maxX - minX) * (maxY - minY) * (maxZ - minZ);
+    }
+
+    private static double volume(DirtyBox b) {
+        return volume(b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ());
+    }
+
+    private void mergeClosestPair() {
+        int bestI = 0, bestJ = 1;
+        double bestGrowth = Double.MAX_VALUE;
+
+        for (int i = 0; i < boxes.size(); i++) {
+            var a = boxes.get(i);
+            for (int j = i + 1; j < boxes.size(); j++) {
+                var b = boxes.get(j);
+                double growth = volume(
+                        Math.min(a.minX(), b.minX()), Math.min(a.minY(), b.minY()), Math.min(a.minZ(), b.minZ()),
+                        Math.max(a.maxX(), b.maxX()), Math.max(a.maxY(), b.maxY()), Math.max(a.maxZ(), b.maxZ())
+                ) - volume(a) - volume(b);
+
+                if (growth < bestGrowth) {
+                    bestGrowth = growth;
+                    bestI = i;
+                    bestJ = j;
+                }
+            }
+        }
+
+        var a = boxes.get(bestI);
+        var b = boxes.get(bestJ);
+        int newer = age(a.frame()) <= age(b.frame()) ? a.frame() : b.frame();
+
+        boxes.set(bestI, new DirtyBox(
+                Math.min(a.minX(), b.minX()), Math.min(a.minY(), b.minY()), Math.min(a.minZ(), b.minZ()),
+                Math.max(a.maxX(), b.maxX()), Math.max(a.maxY(), b.maxY()), Math.max(a.maxZ(), b.maxZ()),
+                newer
+        ));
+        boxes.remove(bestJ);
     }
 
     private void upload() {

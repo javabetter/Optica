@@ -21,8 +21,9 @@ public interface CachedProperties extends PropertyDefines {
     @Key(legacy = "photonics.restirCombinedGi")
     boolean isCombinedGi();
 
-    @DefaultValue("1.0")
-    @FloatRange(min = 0.1f)
+    /** 0 = recompute only where blocks or lights changed (no timed refresh). */
+    @DefaultValue("0.0")
+    @FloatRange(min = 0.0f)
     @Defines("PH_CACHE_REFRESH_SECONDS")
     @Key(legacy = "optica.cacheRefreshSeconds")
     float getRefreshSeconds();

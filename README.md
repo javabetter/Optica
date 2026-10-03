@@ -15,9 +15,8 @@ __Optica replaces Photonics; do not install both.__
 
 ## Cached lighting mode
 
-A toggleable lighting performance-boosting mode for lower-end GPUs. Lighting is computed per block face in the world and reused. It is then refreshed in the background, so the per-frame cost barely depends on how many lights are around.
-Changes to lights and blocks show up with a delay of up to the refresh time, and entities do not cast
-raytraced shadows. It works with Photonics-compatible shaders.
+A toggleable lighting performance-boosting mode for lower-end GPUs. Lighting is computed per block face in the world and reused, and only recomputed where blocks or lights change, so the per-frame cost barely depends on how many lights are around.
+Entities do not cast raytraced shadows. It works with Photonics-compatible shaders.
 
 ## Settings
 
@@ -27,7 +26,8 @@ screen instead. Every option below starts at its highest-quality setting (off).
 
 - **Lighting Cache**: Off (default), or On for the cached lighting mode (replaces the pack's lighting mode).
 - **Lighting Cache Settings** (sub-page):
-  - **Refresh Time**: time to recompute all cached lighting once (0.25 - 10 s).
+  - **Refresh Time**: Only on Changes (default) recomputes lighting only where blocks or lights change;
+    a time (0.25 - 10 s) also recomputes all cached lighting once per that many seconds.
   - **Cache Detail**: lighting samples per block edge near the camera (1, 2, 4 or 8).
   - **Cache Memory**: GPU memory for the cache (32 - 512 MB).
   - **Cache GI**: Screen Space (default, smooth GI computed each frame as in Sharp mode), or 1 / 2 / 4 rays
