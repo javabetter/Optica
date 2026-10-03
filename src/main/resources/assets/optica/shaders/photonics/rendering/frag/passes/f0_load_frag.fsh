@@ -10,9 +10,38 @@
 #include "/photonics/rendering/frag/depth.glsl"
 
 
+//ph_required: uniform mat4 gbufferModelView;
+//ph_required: uniform mat4 gbufferModelViewInverse;
+//ph_required: uniform mat4 gbufferProjection;
+//ph_required: uniform mat4 gbufferProjectionInverse;
+
 layout(location = 0) out vec4  frag_data0_out;
 layout(location = 1) out uvec4 frag_data1_out;
 layout(location = 2) out vec2  fast_data_out;
+
+vec3 ph_screen_to_player(vec2 uv, float depth) {
+    vec4 view = gbufferProjectionInverse * vec4(vec3(uv, depth) * 2.0f - 1.0f, 1.0f);
+    return ph_transform(gbufferModelViewInverse, view.xyz / view.w);
+}
+
+// Optica: below render scale 1, packs reconstruct the position from the depth of the full resolution
+// pixel nearest to this texel (rounded) but with this texel's own screen position. The two are up to
+// ~0.8 pixels apart in a pattern fixed to the screen, so positions land slightly above or below the
+// surface, which showed as thin lines of light and shadow that stayed in place on the screen. Move the
+// position to the screen position of the pixel its depth came from.
+vec3 ph_fix_render_scale_position(vec3 player_pos) {
+#ifdef PH_RENDER_SCALE
+    vec2 full_size = vec2(viewWidth, viewHeight);
+    vec2 texel_uv = gl_FragCoord.xy / floor(full_size * PH_RENDER_SCALE);
+    vec2 depth_uv = (vec2(DEPTH_MODIFIER(ivec2(gl_FragCoord.xy))) + 0.5f) / full_size;
+
+    // The depth the pack used (depthtex0 or depthtex1), from its own position.
+    float depth = ph_project_and_divide(gbufferProjection, ph_transform(gbufferModelView, player_pos)).z * 0.5f + 0.5f;
+
+    player_pos += ph_screen_to_player(depth_uv, depth) - ph_screen_to_player(texel_uv, depth);
+#endif
+    return player_pos;
+}
 
 void load_frag_data(
     out vec3 frag_geo_normal,
@@ -28,6 +57,7 @@ void load_frag_data(
     frag_is_hand = is_hand_at();
 
     frag_player_pos = load_player_position();
+    if (!frag_is_hand) frag_player_pos = ph_fix_render_scale_position(frag_player_pos);
     frag_rt_pos = frag_player_pos + rt_camera_position;
 
     float dist = distance(floor(frag_rt_pos), floor(rt_camera_position));
