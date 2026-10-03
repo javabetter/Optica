@@ -182,6 +182,7 @@ public class TreeManager implements WorldManager {
         if (root == null) return;
 
         root = root.trim();
+        anchorRoot();
         if (root == null) {
             rootMemory.setChildMask(0);
             rootMemory.upload();
@@ -191,6 +192,24 @@ public class TreeManager implements WorldManager {
 
         root.uploadTo(rootMemory);
         rootMemory.upload();
+    }
+
+    /**
+     * Optica: grows the root until it starts at (0, 0, 0). The shaders map rt positions to the tree as
+     * position / world_tree_size, i.e. they assume that corner. A root built around blocks that are all
+     * away from it (a small island or lobby in the void) put every ray beside the world: shadow rays
+     * left the world without reaching their light, and lighting switched off or on as moving the camera
+     * shifted the origin and with it whether the root happened to line up.
+     */
+    private void anchorRoot() {
+        while (root != null) {
+            var min = root.minBounds();
+            if (min.x == 0 && min.y == 0 && min.z == 0) return;
+
+            WorldNode previousRoot = root;
+            root = createNode(previousRoot.depth() + 1, previousRoot.minBounds());
+            root.insertEntry(previousRoot.minBounds(), previousRoot);
+        }
     }
 
     public void findBounds(Vector3i minBlock, Vector3i maxBlock) {

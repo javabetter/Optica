@@ -6,6 +6,7 @@ import com.optica.api.gpu.systems.IRenderSystem;
 import com.optica.core.iris.pipeline.buffer.IBufferHolder;
 import com.optica.core.iris.pipeline.uniform.IUniformHolder;
 import com.optica.core.iris.pipeline.uniform.IUniformUpdateFrequency;
+import com.optica.api.mc.Minecraft;
 import com.optica.core.rendering.NativeMemory;
 import com.optica.core.rendering.RenderingComponent;
 import org.joml.Vector3i;
@@ -36,8 +37,13 @@ public final class SurfaceCache implements RenderingComponent {
 
     /** Dirty regions kept on the GPU (beyond that, the closest ones are merged). Must match cache.glsl. */
     public static final int DIRTY_MAX = 64;
-    private static final int DIRTY_BOX_INTS = 8;
-    private static final int DIRTY_HEADER_INTS = 4;
+    /**
+     * The regions reach the shaders as a grid of cells around the camera holding the frame of the newest
+     * change in each (one lookup per pixel instead of a loop over every region). Must match cache.glsl.
+     */
+    private static final int GRID_CELL_SHIFT = 4;
+    private static final int GRID_X = 64, GRID_Y = 32, GRID_Z = 64;
+    private static final int GRID_HEADER_INTS = 4;
     /** A changed section affects lighting (shadows of nearby lights) this many blocks around it. */
     private static final int DIRTY_MARGIN = 16;
     /** Must match ph_cache_frame_period in cache.glsl. */
@@ -52,6 +58,9 @@ public final class SurfaceCache implements RenderingComponent {
 
     private record DirtyBox(int minX, int minY, int minZ, int maxX, int maxY, int maxZ, int frame) {
     }
+
+    /** Grid origin (in cells) of the last upload. */
+    private int gridX = Integer.MIN_VALUE, gridY, gridZ;
 
     /** The cache's frame clock (the shaders' optica_cache_frame), wrapping at FRAME_PERIOD. */
     private int frame = 0;
@@ -70,7 +79,7 @@ public final class SurfaceCache implements RenderingComponent {
         long entryBytes = (1L << capacityLog2) * ENTRY_UINTS * Integer.BYTES;
         long stateBytes = (long) (STATE_HEADER_UINTS + QUEUE_MAX) * Integer.BYTES;
 
-        long dirtyBytes = (long) (DIRTY_HEADER_INTS + DIRTY_MAX * DIRTY_BOX_INTS) * Integer.BYTES;
+        long dirtyBytes = (long) (GRID_HEADER_INTS + GRID_X * GRID_Y * GRID_Z) * Integer.BYTES;
 
         this.entries = device.ph$createBuffer(() -> "Optica Surface Cache", entryBytes, BufferUsage.COPY_DST);
         this.state = device.ph$createBuffer(() -> "Optica Surface Cache State", stateBytes, BufferUsage.COPY_DST);
@@ -108,7 +117,17 @@ public final class SurfaceCache implements RenderingComponent {
 
         // Frame stamps wrap at FRAME_PERIOD; a box older than half of it would read as recent again.
         boolean expired = boxes.removeIf(box -> age(box.frame()) > FRAME_PERIOD / 2);
-        if (pending.isEmpty() && !expired) return;
+
+        var camera = Minecraft.getCameraPos();
+        int gx = ((int) Math.floor(camera.x) >> GRID_CELL_SHIFT) - GRID_X / 2;
+        int gy = ((int) Math.floor(camera.y) >> GRID_CELL_SHIFT) - GRID_Y / 2;
+        int gz = ((int) Math.floor(camera.z) >> GRID_CELL_SHIFT) - GRID_Z / 2;
+        boolean moved = gx != gridX || gy != gridY || gz != gridZ;
+        gridX = gx;
+        gridY = gy;
+        gridZ = gz;
+
+        if (pending.isEmpty() && !expired && !(moved && !boxes.isEmpty())) return;
 
         // Joining a world or walking into new chunks reports hundreds of sections at once: group them
         // by area first, so far apart changes do not become one box over everything in between.
@@ -195,20 +214,31 @@ public final class SurfaceCache implements RenderingComponent {
 
     private void upload() {
         dirtyUpload.clear();
-        dirtyUpload.putInt(0, boxes.size());
+        dirtyUpload.putInt(0, boxes.isEmpty() ? 0 : 1);
+        dirtyUpload.putInt(4, gridX);
+        dirtyUpload.putInt(8, gridY);
+        dirtyUpload.putInt(12, gridZ);
 
-        int index = 0;
+        int cells = GRID_X * GRID_Y * GRID_Z;
+        for (int i = 0; i < cells; i++) dirtyUpload.putInt((GRID_HEADER_INTS + i) * Integer.BYTES, -1);
+
         for (var box : boxes) {
-            int offset = (DIRTY_HEADER_INTS + index * DIRTY_BOX_INTS) * Integer.BYTES;
-            dirtyUpload.putInt(offset, box.minX());
-            dirtyUpload.putInt(offset + 4, box.minY());
-            dirtyUpload.putInt(offset + 8, box.minZ());
-            dirtyUpload.putInt(offset + 12, box.frame());
-            dirtyUpload.putInt(offset + 16, box.maxX());
-            dirtyUpload.putInt(offset + 20, box.maxY());
-            dirtyUpload.putInt(offset + 24, box.maxZ());
-            dirtyUpload.putInt(offset + 28, 0);
-            index++;
+            // Cells the box touches (max is exclusive), clipped to the grid.
+            int x0 = Math.max((box.minX() >> GRID_CELL_SHIFT) - gridX, 0);
+            int y0 = Math.max((box.minY() >> GRID_CELL_SHIFT) - gridY, 0);
+            int z0 = Math.max((box.minZ() >> GRID_CELL_SHIFT) - gridZ, 0);
+            int x1 = Math.min(((box.maxX() - 1) >> GRID_CELL_SHIFT) - gridX, GRID_X - 1);
+            int y1 = Math.min(((box.maxY() - 1) >> GRID_CELL_SHIFT) - gridY, GRID_Y - 1);
+            int z1 = Math.min(((box.maxZ() - 1) >> GRID_CELL_SHIFT) - gridZ, GRID_Z - 1);
+            int boxAge = age(box.frame());
+
+            for (int z = z0; z <= z1; z++)
+                for (int y = y0; y <= y1; y++)
+                    for (int x = x0; x <= x1; x++) {
+                        int offset = (GRID_HEADER_INTS + x + GRID_X * (y + GRID_Y * z)) * Integer.BYTES;
+                        int existing = dirtyUpload.getInt(offset);
+                        if (existing < 0 || boxAge < age(existing)) dirtyUpload.putInt(offset, box.frame());
+                    }
         }
 
         IRenderSystem.getDevice().ph$createCommandEncoder().ph$writeToBuffer(dirty, dirtyUpload.duplicate().clear());

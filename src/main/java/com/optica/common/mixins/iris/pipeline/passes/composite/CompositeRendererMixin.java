@@ -4,6 +4,7 @@ package com.optica.common.mixins.iris.pipeline.passes.composite;
 
 import com.optica.common.iris.IrisUtil;
 import com.optica.common.iris.pipeline.CompositeRendererPassExt;
+import com.optica.core.rendering.GpuPassTimer;
 import com.optica.common.iris.pipeline.framebuffer.InternalIrisFramebuffer;
 import com.optica.common.iris.pipeline.renderer.PhotonicsRenderer;
 import com.google.common.collect.ImmutableList;
@@ -134,6 +135,7 @@ public abstract class CompositeRendererMixin {
     )
     private void invokePassActions0(CallbackInfo ci, @Local(name = "i") int i) {
         CompositeRendererPassExt pass = (CompositeRendererPassExt) passes.get(i);
+        GpuPassTimer.endPass(pass.getDebugName());
         pass.getActions().forEach(Runnable::run);
     }
 
@@ -147,6 +149,7 @@ public abstract class CompositeRendererMixin {
     )
     private void invokePassActions1(CallbackInfo ci, @Local(name = "i") int i) {
         CompositeRendererPassExt pass = (CompositeRendererPassExt) passes.get(i);
+        GpuPassTimer.endPass(pass.getDebugName());
         pass.getActions().forEach(Runnable::run);
     }
 }

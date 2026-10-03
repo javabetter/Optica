@@ -66,7 +66,6 @@ const uint ph_cache_frame_period = 720720u;
 // An entry is recomputed for a world change at most this often.
 const uint ph_cache_dirty_min_frames = 4u;
 // Must match SurfaceCache.java.
-const int ph_cache_dirty_max = 64;
 // Entries not seen for this many frames may be replaced by new ones.
 const uint ph_cache_stale_frames = 900u;
 
@@ -84,8 +83,9 @@ layout (std430) restrict buffer ph_surface_cache_state {
     uint ph_cache_state[];
 };
 
-// Recently changed regions of the world (SurfaceCache.java), newest first: [0] count, then per region
-// ivec4(min block xyz, frame), ivec4(max block xyz, unused).
+// Recently changed regions of the world (SurfaceCache.java) as a grid of 16-block cells around the
+// camera: [0] 1 if there are any, [1..3] grid origin in cells, then per cell the frame of its newest
+// change (-1 = none), x fastest.
 layout (std430) restrict readonly buffer ph_surface_cache_dirty {
     int ph_cache_dirty[];
 };
@@ -299,7 +299,9 @@ uint ph_cache_acquire(CacheKey key) {
         uint k1 = ph_cache[base + 1u];
 
         if (k1 == key.k1 && ph_cache[base] == key.k0) {
-            ph_cache[base + 2u] = frame;
+            // Many pixels share a sample: only refresh its last-used frame when it is a few frames old,
+            // which saves most of these scattered writes (ages are only compared against long spans).
+            if (ph_cache_age(ph_cache[base + 2u]) >= 4u) ph_cache[base + 2u] = frame;
             PH_PROFILE_ADD(PH_STAT_FOUND, 1);
             return slot;
         }
@@ -397,20 +399,16 @@ bool ph_cache_is_outdated(uint slot) {
 }
 
 // Age (in frames) of the newest world change around a block, or ph_cache_none if there is none.
+const ivec3 ph_cache_dirty_grid = ivec3(64, 32, 64);
+
 uint ph_cache_dirty_age(ivec3 block) {
-    int count = min(ph_cache_dirty[0], ph_cache_dirty_max);
-    uint newest = ph_cache_none;
+    if (ph_cache_dirty[0] == 0) return ph_cache_none;
 
-    for (int i = 0; i < count; i++) {
-        int base = 4 + i * 8;
-        ivec3 lo = ivec3(ph_cache_dirty[base], ph_cache_dirty[base + 1], ph_cache_dirty[base + 2]);
-        ivec3 hi = ivec3(ph_cache_dirty[base + 4], ph_cache_dirty[base + 5], ph_cache_dirty[base + 6]);
-        if (any(lessThan(block, lo)) || any(greaterThanEqual(block, hi))) continue;
+    ivec3 cell = (block >> 4) - ivec3(ph_cache_dirty[1], ph_cache_dirty[2], ph_cache_dirty[3]);
+    if (any(lessThan(cell, ivec3(0))) || any(greaterThanEqual(cell, ph_cache_dirty_grid))) return ph_cache_none;
 
-        newest = min(newest, ph_cache_age(uint(ph_cache_dirty[base + 3])));
-    }
-
-    return newest;
+    int stamp = ph_cache_dirty[4 + cell.x + ph_cache_dirty_grid.x * (cell.y + ph_cache_dirty_grid.y * cell.z)];
+    return stamp < 0 ? ph_cache_none : ph_cache_age(uint(stamp));
 }
 
 // True when a computed entry predates a world change `dirty_age` frames ago (and was not recomputed

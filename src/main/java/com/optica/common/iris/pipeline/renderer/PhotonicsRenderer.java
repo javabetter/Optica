@@ -3,6 +3,7 @@
 package com.optica.common.iris.pipeline.renderer;
 
 import com.optica.common.iris.pipeline.CompositeRendererPassExt;
+import com.optica.core.rendering.GpuPassTimer;
 import com.optica.common.mixins.iris.pipeline.passes.composite.CompositeRendererAccessor;
 import com.google.common.collect.ImmutableMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
@@ -106,7 +107,9 @@ public class PhotonicsRenderer extends CompositeRenderer {
             recalculateSizes();
         }
 
+        GpuPassTimer.beginGroup(name);
         super.renderAll();
+        GpuPassTimer.endGroup();
     }
 
     @Override

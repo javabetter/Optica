@@ -562,3 +562,23 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
 - Refresh Time defaults to "Only on Changes" (0): no rotating refresh and no "outdated" re-queue;
   samples are recomputed only through dirty regions. Verified: a wall placed next to the End fountain
   torches casts its shadow, and removing it restores the lighting.
+
+**Lighting cache: fourth user profile (lights on/off by position)**
+- In one world (236 lights) every shadow ray ended "left world" (0% reached) for whole sessions; in
+  another (1000 lights) rays behaved normally. The user found a spot where moving down half a block
+  turned the lighting off and back up turned it on.
+- Cause: the shaders map rt positions to the voxel tree as `position / world_tree_size + 1`, i.e. they
+  assume the root node starts at (0, 0, 0). TreeManager builds the root around wherever blocks are
+  (the first block container, grown only as far as needed) and `trim()` descends into a single
+  occupied child, so in sparse worlds the root could start elsewhere. Logged in the dev client: the
+  first upload after joining a void scene had its root at (224, 128, 128), with 54-100% of rays
+  leaving the world. The camera-following origin moves in 64-block steps, which decides whether the
+  root happens to line up: hence the half-block toggle.
+- Fix: `trim()` only descends into a child at (0, 0, 0), and `anchorRoot()` grows the root until it
+  starts there before every upload. Verified: every upload in the same scenes had its root at 0.
+- GPU timer queries per pass (GpuPassTimer, profiler `gpuMs`) to locate the remaining cost. Software
+  rendering only gives proportions: the request pass was the largest Optica pass. It now skips
+  last-used writes that are under 4 frames old, and looks dirty regions up in a 64 x 32 x 64 grid of
+  16-block cells around the camera (SurfaceCache rasterises the merged regions) instead of looping
+  over up to 64 boxes per pixel. The Screen Space GI filter weighs taps with the RG32F fast frag data
+  and view positions rebuilt from it instead of the two full frag data textures.

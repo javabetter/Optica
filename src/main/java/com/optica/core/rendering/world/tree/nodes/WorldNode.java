@@ -200,6 +200,11 @@ public class WorldNode extends VoxelTreeNode implements Disposable {
             var entry = getEntry(i);
             if (!(entry instanceof WorldNode worldNode)) continue;
 
+            // Optica: the shaders place the root at (0, 0, 0) of rt space (position / world_tree_size),
+            // so only a child starting there can become the root.
+            var min = worldNode.minBounds();
+            if (min.x != 0 || min.y != 0 || min.z != 0) break;
+
             var ignored = replaceEntry(i, null);
             close();
 

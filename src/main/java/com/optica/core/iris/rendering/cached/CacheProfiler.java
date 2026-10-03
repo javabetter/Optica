@@ -8,6 +8,7 @@ import com.optica.core.Photonics;
 import com.optica.core.iris.pipeline.buffer.IBufferHolder;
 import com.optica.core.rendering.NativeMemory;
 import com.optica.core.rendering.RenderingComponent;
+import com.optica.core.rendering.GpuPassTimer;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -70,6 +71,7 @@ public final class CacheProfiler implements RenderingComponent {
         this.counters = device.ph$createBuffer(() -> "Optica Cache Profiler", BYTES, BufferUsage.COPY_DST | BufferUsage.COPY_SRC);
         this.readback = device.ph$createBuffer(() -> "Optica Cache Profiler Readback", BYTES, BufferUsage.COPY_DST | BufferUsage.MAP_READ);
         this.zeros = NativeMemory.calloc(BYTES);
+        GpuPassTimer.setEnabled(true);
 
         device.ph$createCommandEncoder().ph$writeToBuffer(counters, zeros.duplicate().clear());
         openLog();
@@ -105,6 +107,7 @@ public final class CacheProfiler implements RenderingComponent {
         maxFrameMs = Math.max(maxFrameMs, (now - lastFrame) / 1e6);
         lastFrame = now;
         cpuFrames++;
+        GpuPassTimer.frameMark();
 
         if (pendingDelay >= 0 && pendingDelay-- == 0) read();
 
@@ -179,6 +182,11 @@ public final class CacheProfiler implements RenderingComponent {
                 c[SLOT_NONE] / frames, c[SLOT_MISMATCH] / frames, c[NOT_COMPUTED] / frames));
         line.append(String.format(Locale.ROOT, " | sectionsUploaded=%d lightsChanged=%d dirtyRegions=%d", sections, lights, regions));
 
+        // GPU milliseconds per frame: the whole frame, then each group of Optica passes.
+        line.append(" | gpuMs");
+        for (var entry : GpuPassTimer.drain().entrySet())
+            line.append(String.format(Locale.ROOT, " %s=%.2f", entry.getKey().replace(' ', '_'), entry.getValue()));
+
         try {
             log.write(line.toString());
             log.newLine();
@@ -198,6 +206,7 @@ public final class CacheProfiler implements RenderingComponent {
 
     @Override
     public void close() {
+        GpuPassTimer.setEnabled(false);
         counters.close();
         readback.close();
         NativeMemory.free(zeros);

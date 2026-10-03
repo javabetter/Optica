@@ -68,3 +68,4 @@ Each line averages about one second. "Per frame" means divided by `gpuFrames`.
 | `slotMismatch` | Samples whose place was taken by another sample between passes. |
 | `notComputed` | Samples that exist but are not computed yet. |
 | `sectionsUploaded`, `lightsChanged`, `dirtyRegions` | World sections whose blocks changed (or that loaded) and lights that changed in the window, and the change regions created from them. |
+| `gpuMs` | GPU milliseconds per frame: `frame` is the whole frame (everything Minecraft, the shader pack and Optica draw), then each Optica pass as `group/pass` (for example `cached_lighting/request`). Compare the passes with `frame` to see how much of it is Optica. |
