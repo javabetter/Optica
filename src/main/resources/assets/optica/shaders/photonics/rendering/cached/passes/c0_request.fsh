@@ -31,7 +31,7 @@ uvec4 request(CacheSurface surface, uint dirty_age) {
 
         // Recompute now rather than whenever the rotating update gets to it: samples seen again after
         // being out of view, and samples computed before a block or light changed nearby.
-        bool outdated = ph_cache_is_outdated(slot);
+        bool outdated = ph_cache_is_outdated(slot) || ph_cache_retry_due(slot);
         bool predates_change = !outdated && ph_cache_predates_change(slot, dirty_age);
 
         if (outdated || predates_change) {

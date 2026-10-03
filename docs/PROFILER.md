@@ -46,7 +46,7 @@ Each line averages about one second. "Per frame" means divided by `gpuFrames`.
 | `failQueue` | New samples refused because this frame's queue (65536) was full. |
 | `failRace` | Another pixel was creating a sample in the same place at the same time (retried next frame). |
 | `failOverflow` | Created, then refused because the queue filled up at the same moment. |
-| `refreshOutdated` | Requests (per pixel corner, not unique) to recompute samples seen again after a while out of view. |
+| `refreshOutdated` | Requests (per pixel corner, not unique) to recompute samples seen again after a while out of view, or retried after an unsure computation (a shadow ray left the voxel world). |
 | `refreshDirty` | Requests to recompute samples older than a nearby block or light change. |
 | `refreshRejected` | Recompute requests refused because the queue's refresh share (half) was full. |
 | `queueAsked`, `queueDone` | Queue entries asked for and computed per frame (asked > done means overflow). |
@@ -67,5 +67,5 @@ Each line averages about one second. "Per frame" means divided by `gpuFrames`.
 | `slotNone` | Samples per frame that could not be created or found (see the `fail*` columns). |
 | `slotMismatch` | Samples whose place was taken by another sample between passes. |
 | `notComputed` | Samples that exist but are not computed yet. |
-| `sectionsUploaded`, `lightsChanged`, `dirtyRegions` | World sections whose blocks changed (or that loaded) and lights that changed in the window, and the change regions created from them. |
+| `sectionsUploaded`, `lightsChanged`, `dirtyRegions` | Changed areas of world sections (the 4x4x4 block cubes whose voxel blocks changed, or that loaded) and lights that changed in the window, and the change regions created from them. |
 | `gpuMs` | GPU milliseconds per frame: `frame` is the whole frame (everything Minecraft, the shader pack and Optica draw), then each Optica pass as `group/pass` (for example `cached_lighting/request`). Compare the passes with `frame` to see how much of it is Optica. |

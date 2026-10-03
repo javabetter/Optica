@@ -88,9 +88,7 @@ public class ChunkCompiler implements Runnable, RenderingComponent {
                 long hash = section.computeSectionHash(level);
                 if (isDuplicateSection(section.pos(), hash)) continue;
 
-                // Optica: blocks only (no sky light), so the lighting cache can tell real block changes apart.
-                long blockHash = section.computeSectionHash(null);
-                var buildResult = new BuildResult(section.pos(), section.blockPos(), hash, blockHash, section.priority());
+                var buildResult = new BuildResult(section.pos(), section.blockPos(), hash, section.priority());
 
                 BlockMesher.REGISTRY.setup();
 
@@ -171,7 +169,6 @@ public class ChunkCompiler implements Runnable, RenderingComponent {
         private final Vector3i chunkPos;
         private final Vector3i chunkBlockPos;
         private final long hash;
-        private final long blockHash;
         private final long priority;
 
         private final List<BlockResult> blocks = new ArrayList<>(128);
@@ -183,13 +180,11 @@ public class ChunkCompiler implements Runnable, RenderingComponent {
                 Vector3i chunkPos,
                 Vector3i chunkBlockPos,
                 long hash,
-                long blockHash,
                 long priority
         ) {
             this.chunkPos = chunkPos;
             this.chunkBlockPos = chunkBlockPos;
             this.hash = hash;
-            this.blockHash = blockHash;
             this.priority = priority;
         }
 
@@ -199,11 +194,6 @@ public class ChunkCompiler implements Runnable, RenderingComponent {
 
         public Vector3i chunkBlockPos() {
             return chunkBlockPos;
-        }
-
-        /** Hash of the section's blocks alone (its {@code hash} also covers sky light). */
-        public long blockHash() {
-            return blockHash;
         }
 
         @Override

@@ -58,6 +58,10 @@ const uint ph_cache_locked = 1u;
 const uint ph_cache_reset_gi_bit = 1u << 29;
 // Set while an entry waits in the queue for a refresh, so it is queued only once.
 const uint ph_cache_queued_bit = 1u << 30;
+// Set when the last computation was unsure (a shadow ray left the voxel world): the request pass
+// retries the sample every few frames.
+const uint ph_cache_retry_bit = 1u << 28;
+const uint ph_cache_retry_interval = 8u;
 // Target spacing of samples on screen. Lower is sharper but needs more samples.
 const float ph_cache_pixels_per_sample = 3.0f;
 
@@ -454,6 +458,22 @@ void ph_cache_store(uint slot, vec3 direct, vec3 indirect, uint gi_samples) {
     ph_cache[base + 5u] = packHalf2x16(vec2(direct.b, indirect.r));
     ph_cache[base + 6u] = packHalf2x16(indirect.gb);
     ph_cache[base + 3u] = ph_cache_computed_bit | min(gi_samples, 0xFFFFu);
+}
+
+// An unsure result: keeps the entry's last-computed frame (so changes since still count as newer) and
+// marks it for a retry. Its values are what the caller passes (the previous ones if it had any).
+void ph_cache_store_unsure(uint slot, vec3 direct, vec3 indirect, uint gi_samples) {
+    uint base = ph_cache_base(slot);
+    ph_cache[base + 4u] = packHalf2x16(direct.rg);
+    ph_cache[base + 5u] = packHalf2x16(vec2(direct.b, indirect.r));
+    ph_cache[base + 6u] = packHalf2x16(indirect.gb);
+    ph_cache[base + 3u] = ph_cache_computed_bit | ph_cache_retry_bit | min(gi_samples, 0xFFFFu);
+}
+
+// True for an unsure entry whose retry is due this frame (spread over the interval by slot).
+bool ph_cache_retry_due(uint slot) {
+    if ((ph_cache[ph_cache_base(slot) + 3u] & ph_cache_retry_bit) == 0u) return false;
+    return ((ph_cache_frame() + slot) % ph_cache_retry_interval) == 0u;
 }
 
 #endif

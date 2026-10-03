@@ -76,6 +76,11 @@ void main() {
     interleave = true;
 #endif
     int interval = !interleave ? 1 : distance < 48.0f ? 2 : distance < 96.0f ? 4 : 8;
+#ifdef PH_CACHE_DETAIL
+    // Profiled on a user's GPU, these paths were most of the lighting cache's frame time (6.8 of
+    // 11.4 ms), so the cache traces half as often again.
+    interval *= 2;
+#endif
     ivec2 pixel = ivec2(gl_FragCoord.xy);
     int phase = (pixel.x & 3) | ((pixel.y & 3) << 2);
 

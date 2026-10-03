@@ -582,3 +582,20 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   16-block cells around the camera (SurfaceCache rasterises the merged regions) instead of looping
   over up to 64 boxes per pixel. The Screen Space GI filter weighs taps with the RG32F fast frag data
   and view positions rebuilt from it instead of the two full frag data textures.
+
+**Lighting cache: fifth user profile (Hypixel SkyBlock, GPU timings)**
+- GPU time at ~42 fps: frame 23.8 ms; Optica 11.4 ms, of which the Screen Space GI trace (lg0) was
+  6.8 ms, cache resolve 2.1 ms, update 0.7, request 0.6, GI filter 0.7, frag data 0.4. (Software
+  rendering had made the request pass look like the largest one; on a real GPU it is cheap.) In cache
+  mode lg0 now traces half as often (intervals 4 / 8 / 16 by distance).
+- Moving up and down half a block "refreshed" the lighting: `rayLeftWorld%` rose to 1-19% in exactly
+  those windows. In the dev client the same failure shows right after joining (82% while the light
+  list was ahead of the voxel world: lights known, their blocks not uploaded). Real origin flips
+  showed 0% over 12 flips. A shadow ray towards a light always ends at the light's block, so leaving
+  the world means the world is not consistent with the light list yet: such a computation is now
+  "unsure" (c1 keeps the previous values and the last-computed frame, sets a retry bit) and c0 retries
+  it every 8 frames.
+- refreshDirty was ~2M requests per frame (queue-capped recomputes every frame) from 10-65 changed
+  sections per second. The world compiler now hashes the voxel blocks (blocks with model parts) of
+  each 4x4x4 cube and reports only the changed cubes' bounding box (unloaded counts as empty), and the
+  cache adds the 16-block light margin around that instead of around the whole section.

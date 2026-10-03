@@ -23,6 +23,9 @@ Optica: Photonics ported to Minecraft 26.1.2 (Fabric), with Euphoria Patches sup
 - Faster lighting cache: Screen Space GI traces new paths every other frame nearby and less often further away, even with LOD Quality at 1.0, and fully cached pixels skip re-reading the previous frame.
 - Fixed Optica lighting switching off in some places and back on when moving half a block (most common in small islands, lobbies and other worlds surrounded by void): the voxel world could be built with its corner away from where the shaders expect it, so every shadow ray missed its light. This affected every lighting mode.
 - Faster lighting cache: pixels no longer rewrite the "last used" mark of shared samples every frame, block and light changes are looked up in a grid instead of checked one by one, and the Screen Space GI filter reads a third of the data per sample.
+- Fixed cached lighting briefly going dark and "refreshing" when moving (for example up and down half a block on servers): samples computed while a light's blocks had not reached the voxel world yet came out dark. Such samples now keep their previous lighting and are retried a few frames later.
+- Much less background recomputing on busy servers: only changes to blocks the shadow rays actually see count as changes, and lighting is recomputed around the changed 4x4x4 block area rather than the whole chunk section.
+- Faster Screen Space GI with the lighting cache: on a user's GPU it was most of the cache's frame time, so it now traces new paths half as often (it already averages 32).
 - The profiler now logs the GPU time of the whole frame and of each Optica pass (`gpuMs`).
 - New diagnostics on the Lighting Cache Settings page: a **Profiler** that logs what the cache does to `optica-profile.log`, and a **Debug View** that colours the lighting by cache state or detail level.
 

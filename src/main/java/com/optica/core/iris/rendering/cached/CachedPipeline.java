@@ -40,7 +40,7 @@ public class CachedPipeline extends PhotonicsPipeline {
 
         var cache = registerComponent(new SurfaceCache(cachedProperties.getCapacityLog2()));
         // Recompute cached lighting where blocks or lights changed, as soon as the change reaches the GPU.
-        worldCompiler.setSectionUploadListener(cache::onSectionsUploaded);
+        worldCompiler.setSectionUploadListener(cache::onBlocksChanged);
         lightList.setLightsChangedListener(cache::onLightsChanged);
 
         if (cachedProperties.isProfiling()) {

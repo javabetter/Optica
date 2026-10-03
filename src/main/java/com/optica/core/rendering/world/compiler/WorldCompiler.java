@@ -56,14 +56,17 @@ public class WorldCompiler implements Runnable, RenderingComponent {
     private final RegionIdManager regionIds = new RegionIdManager();
     private final TreeManager treeManager;
 
-    // Optica: block positions of sections written since the last upload, and who wants to know when
-    // they reach the GPU (the cached lighting mode recomputes lighting around them).
-    private final List<Vector3i> writtenSections = new ArrayList<>();
-    private volatile Consumer<List<Vector3i>> sectionUploadListener = null;
-    // Optica: block hash of every loaded section (compiler thread only). Sections are often rebuilt with
-    // the same blocks (sky light spreading after a chunk loads, neighbour updates); only real block
-    // changes and newly loaded sections are reported.
-    private final Map<Vector3i, Long> sectionBlockHashes = new HashMap<>();
+    // Optica: world regions (min xyz, max xyz exclusive, in blocks) whose voxel blocks changed in the
+    // sections written since the last upload, and who wants to know when they reach the GPU (the cached
+    // lighting mode recomputes lighting around them).
+    private final List<int[]> writtenChanges = new ArrayList<>();
+    private volatile Consumer<List<int[]>> sectionUploadListener = null;
+    // Optica: per loaded section, a hash of the voxel blocks in each of its 4x4x4 cubes (compiler thread
+    // only). Sections are rebuilt far more often than the blocks the tracer sees change (sky light,
+    // neighbour and block state updates that do not change a block's shape); only cubes whose voxel
+    // blocks changed are reported, so lighting is recomputed around them alone.
+    private static final int CUBES = 64;
+    private final Map<Vector3i, long[]> sectionCubeHashes = new HashMap<>();
 
     private final ReentrantLock uploadLock = new ReentrantLock();
     private final Condition uploadDone = uploadLock.newCondition();
@@ -133,18 +136,13 @@ public class WorldCompiler implements Runnable, RenderingComponent {
 
 
                 var builtSections = taskQueue.drain(MAX_SECTIONS_PER_RUN);
-                List<Vector3i> batch = new ArrayList<>(builtSections.size());
-                for (var section : builtSections) {
-                    Long previous = sectionBlockHashes.put(new Vector3i(section.chunkPos()), section.blockHash());
-                    if (previous == null || previous != section.blockHash())
-                        batch.add(new Vector3i(section.chunkBlockPos()));
-                }
+                List<int[]> batch = new ArrayList<>();
 
                 if (!builtSections.isEmpty()) {
                     recenter();
 
                     clearPendingSections(builtSections);
-                    insertSections(builtSections);
+                    insertSections(builtSections, batch);
                 }
 
                 if (!unloadedSections.isEmpty() || !builtSections.isEmpty()) {
@@ -167,7 +165,7 @@ public class WorldCompiler implements Runnable, RenderingComponent {
     // Compiler steps
 
     private void clearUnloadedSections(List<Vector3i> unloadedSections) {
-        for (var section : unloadedSections) sectionBlockHashes.remove(section);
+        for (var section : unloadedSections) sectionCubeHashes.remove(section);
 
         if (iorigin == null) return;
 
@@ -205,7 +203,7 @@ public class WorldCompiler implements Runnable, RenderingComponent {
         treeManager.removeRegions(regions);
     }
 
-    private void insertSections(List<ChunkCompiler.BuildResult> sections) {
+    private void insertSections(List<ChunkCompiler.BuildResult> sections, List<int[]> changes) {
         BlockSorter blockSorter = new BlockSorter();
         Vector3i blockPos = new Vector3i();
 
@@ -218,6 +216,7 @@ public class WorldCompiler implements Runnable, RenderingComponent {
 
                 var chunkBlockPos = new Vector3i(section.chunkBlockPos())
                         .sub(iorigin);
+                long[] cubes = new long[CUBES];
 
                 int region = regionIds.getId(section.chunkPos());
                 section.forEachBlock((blockChunkOffset, blockState, blockModel) -> blockSorter.addBlock(
@@ -229,6 +228,13 @@ public class WorldCompiler implements Runnable, RenderingComponent {
                 blockSorter.forEachBlock((block) -> {
                     var parts = block.blockModel().parts();
                     if (parts.isEmpty()) return;
+
+                    int lx = block.x() - chunkBlockPos.x, ly = block.y() - chunkBlockPos.y, lz = block.z() - chunkBlockPos.z;
+                    if ((lx | ly | lz) >= 0 && lx < 16 && ly < 16 && lz < 16) {
+                        int cube = (lx >> 2) | ((ly >> 2) << 2) | ((lz >> 2) << 4);
+                        long h = (lx | (ly << 4) | (lz << 8)) * 0x9E3779B97F4A7C15L ^ block.blockState().hashCode() * 0xC2B2AE3D27D4EB4FL;
+                        cubes[cube] += h ^ (h >>> 29);
+                    }
 
                     var light = registry.lightRegistry().getWeak(block.blockState());
 
@@ -250,8 +256,32 @@ public class WorldCompiler implements Runnable, RenderingComponent {
                         );
                     }
                 });
+
+                reportChangedCubes(section, cubes, changes);
             }
         }
+    }
+
+    /** Optica: adds the region of the section's cubes whose voxel blocks changed (unloaded counts as empty). */
+    private void reportChangedCubes(ChunkCompiler.BuildResult section, long[] cubes, List<int[]> changes) {
+        long[] previous = sectionCubeHashes.put(new Vector3i(section.chunkPos()), cubes);
+
+        int minX = 4, minY = 4, minZ = 4, maxX = -1, maxY = -1, maxZ = -1;
+        for (int i = 0; i < CUBES; i++) {
+            if (cubes[i] == (previous == null ? 0L : previous[i])) continue;
+
+            int x = i & 3, y = (i >> 2) & 3, z = i >> 4;
+            minX = Math.min(minX, x); minY = Math.min(minY, y); minZ = Math.min(minZ, z);
+            maxX = Math.max(maxX, x); maxY = Math.max(maxY, y); maxZ = Math.max(maxZ, z);
+        }
+
+        if (maxX < 0 || sectionUploadListener == null) return;
+
+        var origin = section.chunkBlockPos();
+        changes.add(new int[] {
+                origin.x + minX * 4, origin.y + minY * 4, origin.z + minZ * 4,
+                origin.x + maxX * 4 + 4, origin.y + maxY * 4 + 4, origin.z + maxZ * 4 + 4
+        });
     }
 
     private void writeSections() throws InterruptedException {
@@ -270,12 +300,12 @@ public class WorldCompiler implements Runnable, RenderingComponent {
         }
     }
 
-    private void awaitUpload(List<Vector3i> writtenBatch) throws InterruptedException {
+    private void awaitUpload(List<int[]> writtenBatch) throws InterruptedException {
         uploadLock.lockInterruptibly();
 
         try {
             // Reported by the upload that publishes them (onFrameBegin), not before.
-            if (sectionUploadListener != null) writtenSections.addAll(writtenBatch);
+            if (sectionUploadListener != null) writtenChanges.addAll(writtenBatch);
             canUpload = true;
             uniformUpdater.updateNextFrame();
             uploadDone.await();
@@ -285,7 +315,7 @@ public class WorldCompiler implements Runnable, RenderingComponent {
     }
 
     /** Optica: called on the render thread with the block positions of sections as they reach the GPU. */
-    public void setSectionUploadListener(Consumer<List<Vector3i>> listener) {
+    public void setSectionUploadListener(Consumer<List<int[]>> listener) {
         this.sectionUploadListener = listener;
     }
 
@@ -311,9 +341,9 @@ public class WorldCompiler implements Runnable, RenderingComponent {
             mostRecentBlockContainerScale = 21 - (treeManager.depth() - (VoxelTreeEntry.BLOCK_CONTAINER_DEPTH) << 1);
 
             var listener = sectionUploadListener;
-            if (listener != null && !writtenSections.isEmpty()) {
-                listener.accept(List.copyOf(writtenSections));
-                writtenSections.clear();
+            if (listener != null && !writtenChanges.isEmpty()) {
+                listener.accept(List.copyOf(writtenChanges));
+                writtenChanges.clear();
             }
 
             uploadDone.signalAll();

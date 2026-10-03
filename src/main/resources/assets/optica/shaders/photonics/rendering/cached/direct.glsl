@@ -21,7 +21,11 @@
 // they need, and this runs per cache sample, not per pixel.
 const int ph_cache_shadow_iterations = 256;
 
-vec3 ph_cache_direct_light(vec3 rt_pos, vec3 normal, int max_lights) {
+// `unsure` is set when a shadow ray left the voxel world. A ray towards a light always ends at the
+// light's block, so that means the world was not (yet) consistent with the light list, e.g. while the
+// voxel world was rebuilt around a moving camera; the result should not replace a known one.
+vec3 ph_cache_direct_light(vec3 rt_pos, vec3 normal, int max_lights, out bool unsure) {
+    unsure = false;
 #if defined PH_ENABLE_BLOCKLIGHT
     if (light_list_size <= 0) {
         PH_PROFILE_ADD(PH_STAT_DIRECT_NO_LIST, 1);
@@ -86,6 +90,7 @@ vec3 ph_cache_direct_light(vec3 rt_pos, vec3 normal, int max_lights) {
         if (trace_light_vis_reason(rt_pos, light.position - rt_pos, light.position, ph_cache_shadow_iterations, tint_color, light_transmittance, reason))
             total += color * tint_color * light_transmittance;
 
+        if (reason == 3) unsure = true;
         PH_PROFILE_ADD(PH_STAT_RAY_REACHED + clamp(reason, 0, 4), 1);
     }
 
@@ -93,6 +98,11 @@ vec3 ph_cache_direct_light(vec3 rt_pos, vec3 normal, int max_lights) {
 #else
     return vec3(0.0f);
 #endif
+}
+
+vec3 ph_cache_direct_light(vec3 rt_pos, vec3 normal, int max_lights) {
+    bool unsure;
+    return ph_cache_direct_light(rt_pos, normal, max_lights, unsure);
 }
 
 #endif

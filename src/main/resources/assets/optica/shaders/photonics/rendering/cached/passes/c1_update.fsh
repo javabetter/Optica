@@ -131,7 +131,8 @@ void main() {
 
     vec3 rt_pos = world_pos + jitter + normal * ph_cache_surface_offset - cameraPosition + rt_camera_position;
 
-    vec3 direct = ph_cache_direct_light(rt_pos, normal, PH_MAX_SAMPLES);
+    bool unsure;
+    vec3 direct = ph_cache_direct_light(rt_pos, normal, PH_MAX_SAMPLES, unsure);
     if (all(equal(direct, vec3(0.0f)))) PH_PROFILE_ADD(PH_STAT_ZERO_DIRECT, 1);
     // GI is averaged over many updates; it starts over (with more rays) for new samples and after a
     // nearby block or light change, so it still follows changes quickly.
@@ -146,6 +147,12 @@ void main() {
 
     float blend = 1.0f / min(float(gi_samples) + 1.0f, ph_cache_gi_history);
     vec3 indirect = mix(old_indirect, indirect_sample, blend);
+
+    if (unsure) {
+        // Keep what the sample showed until a computation can be trusted (a new sample shows this one).
+        ph_cache_store_unsure(slot, computed ? old_direct : direct, computed ? old_indirect : indirect, gi_samples);
+        return;
+    }
 
     ph_cache_store(slot, direct, indirect, gi_samples + 1u);
 }

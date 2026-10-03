@@ -9,7 +9,6 @@ import com.optica.core.iris.pipeline.uniform.IUniformUpdateFrequency;
 import com.optica.api.mc.Minecraft;
 import com.optica.core.rendering.NativeMemory;
 import com.optica.core.rendering.RenderingComponent;
-import org.joml.Vector3i;
 import org.joml.Vector4f;
 
 import java.nio.ByteBuffer;
@@ -44,7 +43,7 @@ public final class SurfaceCache implements RenderingComponent {
     private static final int GRID_CELL_SHIFT = 4;
     private static final int GRID_X = 64, GRID_Y = 32, GRID_Z = 64;
     private static final int GRID_HEADER_INTS = 4;
-    /** A changed section affects lighting (shadows of nearby lights) this many blocks around it. */
+    /** A block change affects lighting (shadows of the lights that reach it) this many blocks around it. */
     private static final int DIRTY_MARGIN = 16;
     /** Must match ph_cache_frame_period in cache.glsl. */
     public static final int FRAME_PERIOD = 720720;
@@ -91,13 +90,13 @@ public final class SurfaceCache implements RenderingComponent {
         clear(dirty);
     }
 
-    /** World sections (block positions of their origin) whose blocks just reached the GPU. */
-    public void onSectionsUploaded(List<Vector3i> sectionOrigins) {
-        sectionsUploaded += sectionOrigins.size();
-        for (var origin : sectionOrigins)
+    /** Regions (min xyz, max xyz exclusive, in blocks) whose voxel blocks just changed on the GPU. */
+    public void onBlocksChanged(List<int[]> regions) {
+        sectionsUploaded += regions.size();
+        for (var r : regions)
             pending.add(new int[] {
-                    origin.x - DIRTY_MARGIN, origin.y - DIRTY_MARGIN, origin.z - DIRTY_MARGIN,
-                    origin.x + 16 + DIRTY_MARGIN, origin.y + 16 + DIRTY_MARGIN, origin.z + 16 + DIRTY_MARGIN
+                    r[0] - DIRTY_MARGIN, r[1] - DIRTY_MARGIN, r[2] - DIRTY_MARGIN,
+                    r[3] + DIRTY_MARGIN, r[4] + DIRTY_MARGIN, r[5] + DIRTY_MARGIN
             });
     }
 
