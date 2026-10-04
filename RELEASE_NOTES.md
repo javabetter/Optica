@@ -4,6 +4,9 @@ Optica: Photonics ported to Minecraft 26.1.2 (Fabric), with Euphoria Patches sup
 
 **Requirements:** Minecraft 26.1.2, Fabric Loader, Fabric API, Iris 1.11.3+ and Sodium 0.9.1+ (0.9.1 works with Voxy). Optica replaces Photonics; do not install both.
 
+**Next version**
+- Optica's settings now appear in any shader pack that supports Photonics, not just Euphoria Patches. They are added to the pack's own Photonics page wherever it sits in the menu (found by the Photonics settings it lists, not by its name), as a link to an Optica page if that page is not laid out in two columns, or on an Optica page at the end of the main menu if the pack has no Photonics page.
+
 **New in 0.3.1: lighting cache fixes and performance**
 - When joining a world, switching servers or turning quickly, lighting no longer fills in block by block. Areas the cache has not computed yet are lit with regular Photonics-style lighting, and cached lighting fades in over it as it is computed.
 - New cache samples are always computed in the frame they appear (they used to wait up to the refresh time when many appeared at once).

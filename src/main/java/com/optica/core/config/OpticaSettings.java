@@ -2,8 +2,11 @@ package com.optica.core.config;
 
 import com.optica.core.Photonics;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
@@ -14,8 +17,9 @@ import java.util.function.Function;
  * them, so Iris lists them in the pack's settings menu, and they are read here whenever the pack loads.
  * Changing one reloads the pack, which applies it.
  *
- * <p>The options go on the pack's own Photonics page when it has one (Euphoria Patches: Configure
- * Euphoria Patches > Modded Settings > Photonics), otherwise on an "Optica" page linked from the end of
+ * <p>The options go on the pack's own Photonics page when it has one, found by the Photonics options it
+ * lists (Euphoria Patches: Configure Euphoria Patches > Modded Settings > Photonics; Photon: Mods >
+ * Photonics), otherwise on an "Optica" page linked from the end of
  * the main page. Shader packs choose the lighting mode themselves (Euphoria Patches offers BASIC and
  * ReSTIR), so the lighting cache, an Optica-only mode, is switched on here and overrides the pack's choice.
  */
@@ -112,36 +116,42 @@ public final class OpticaSettings {
     }
 
     /**
-     * Adds Optica's options to a pack's settings menu: on the pack's Photonics page if it has one,
-     * otherwise on an Optica page linked from the end of the main page. Packs without screens list every
-     * option on their main page already.
+     * Adds Optica's options to a pack's settings menu, for any pack that supports Photonics: on the
+     * pack's Photonics page if it has one (wherever it sits in the menu), otherwise on an Optica page
+     * linked from the end of the main page. Packs without screens list every option on their main page
+     * already.
      */
     public static void addMenu(Properties packProperties) {
         String mainScreen = packProperties.getProperty("screen");
         if (mainScreen == null) return;
 
         String photonicsScreen = findPhotonicsScreen(packProperties);
+        String link = "[" + MENU + "]";
 
         if (photonicsScreen != null) {
             String entries = packProperties.getProperty(photonicsScreen).trim();
-            if (!entries.contains(LIGHTING_CACHE)) {
-                // Keep Optica's entries in whole rows of a two-column page.
-                int count = entries.isEmpty() ? 0 : entries.split("\\s+").length;
-                String padding = count % 2 == 1 ? " <empty>" : "";
-                packProperties.setProperty(photonicsScreen, entries + padding + " " + String.join(" ", PAGE_ENTRIES));
-            }
+            String columns = packProperties.getProperty(photonicsScreen + ".columns", "").trim();
 
-            // Iris lays out long pages in three columns unless told otherwise; the pack's layout (and
-            // Optica's rows) are made for two.
-            if (!packProperties.containsKey(photonicsScreen + ".columns"))
-                packProperties.setProperty(photonicsScreen + ".columns", "2");
+            // Iris lays out long pages in three columns unless told otherwise; Optica's rows are made
+            // for two. Pages with another column count get a link to Optica's own page instead.
+            boolean twoColumns = columns.isEmpty() || columns.equals("2");
+
+            if (!entries.contains(LIGHTING_CACHE) && !entries.contains(link)) {
+                if (twoColumns) {
+                    // Keep Optica's entries in whole rows of the two-column page.
+                    int count = entries.isEmpty() ? 0 : entries.split("\\s+").length;
+                    String padding = count % 2 == 1 ? " <empty>" : "";
+                    packProperties.setProperty(photonicsScreen, entries + padding + " " + String.join(" ", PAGE_ENTRIES));
+                    if (columns.isEmpty()) packProperties.setProperty(photonicsScreen + ".columns", "2");
+                } else {
+                    packProperties.setProperty(photonicsScreen, entries + " " + link);
+                    addOpticaPage(packProperties);
+                }
+            }
         } else {
-            String link = "[" + MENU + "]";
             if (!mainScreen.contains(link))
                 packProperties.setProperty("screen", mainScreen.trim() + " " + link);
-
-            packProperties.setProperty("screen." + MENU, String.join(" ", PAGE_ENTRIES.subList(2, PAGE_ENTRIES.size())));
-            packProperties.setProperty("screen." + MENU + ".columns", "2");
+            addOpticaPage(packProperties);
         }
 
         packProperties.setProperty("screen." + CACHE_MENU, String.join(" ", CACHE_PAGE_ENTRIES));
@@ -151,25 +161,69 @@ public final class OpticaSettings {
         packProperties.setProperty("sliders", (sliders + " " + String.join(" ", SLIDERS)).trim());
     }
 
+    private static void addOpticaPage(Properties packProperties) {
+        packProperties.setProperty("screen." + MENU, String.join(" ", PAGE_ENTRIES.subList(2, PAGE_ENTRIES.size())));
+        packProperties.setProperty("screen." + MENU + ".columns", "2");
+    }
+
     /**
-     * The pack's Photonics settings page: a screen whose name mentions Photonics (the shortest such name,
-     * so sub-pages like PHOTONICS_SETTINGS_BASIC lose to PHOTONICS_SETTINGS), or null.
+     * The pack's Photonics settings page, or null. Packs name and place it differently (Euphoria Patches:
+     * Modded Settings > Photonics, Photon: Mods > Photonics, others under "ray tracing" and so on), so
+     * the page is found by what it lists: the screen showing the most of the pack's own Photonics
+     * options (the options its photonics.* properties are set from, e.g. photonics.enabled =
+     * PHOTONICS_ENABLED). Without such options, a screen whose name mentions Photonics. Ties go to
+     * the shorter name, so sub-pages like PHOTONICS_SETTINGS_BASIC lose to PHOTONICS_SETTINGS.
      */
-    private static String findPhotonicsScreen(Properties packProperties) {
+    static String findPhotonicsScreen(Properties packProperties) {
+        Set<String> photonicsOptions = new HashSet<>();
+        for (String key : packProperties.stringPropertyNames()) {
+            if (!key.startsWith("photonics.")) continue;
+
+            var identifiers = IDENTIFIER.matcher(packProperties.getProperty(key));
+            while (identifiers.find()) {
+                String name = identifiers.group();
+                if (!name.equals("true") && !name.equals("false")) photonicsOptions.add(name);
+            }
+        }
+
+        Map<String, Integer> scores = new HashMap<>();
         String best = null;
 
         for (String key : packProperties.stringPropertyNames()) {
             if (!key.startsWith("screen.")) continue;
 
             String name = key.substring("screen.".length());
-            if (name.contains(".") || !name.toUpperCase(Locale.ROOT).contains("PHOTONICS")) continue;
+            if (name.contains(".") || name.equals(MENU) || name.equals(CACHE_MENU)) continue;
 
-            if (best == null || key.length() < best.length() || (key.length() == best.length() && key.compareTo(best) < 0))
+            int score = 0;
+            for (String entry : packProperties.getProperty(key).trim().split("\\s+"))
+                if (photonicsOptions.contains(entry)) score += 2;
+            if (name.toUpperCase(Locale.ROOT).contains("PHOTONICS")) score += 1;
+            if (score == 0) continue;
+
+            scores.put(key, score);
+            int bestScore = best == null ? 0 : scores.get(best);
+            if (best == null || score > bestScore
+                    || (score == bestScore && (key.length() < best.length() || (key.length() == best.length() && key.compareTo(best) < 0))))
                 best = key;
+        }
+
+        // A sub-page (e.g. the ReSTIR settings) can list more of them than the main Photonics page that
+        // links to it: climb to the Photonics page that links here.
+        for (int depth = 0; best != null && depth < 8; depth++) {
+            String link = "[" + best.substring("screen.".length()) + "]";
+            String parent = null;
+            for (String key : scores.keySet())
+                if (!key.equals(best) && Arrays.asList(packProperties.getProperty(key).trim().split("\\s+")).contains(link))
+                    parent = key;
+            if (parent == null) break;
+            best = parent;
         }
 
         return best;
     }
+
+    private static final java.util.regex.Pattern IDENTIFIER = java.util.regex.Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
     /**
      * The LOD Quality setting as a multiplier of the level of detail distances: 0.5 gives the distances

@@ -20,9 +20,11 @@ Entities do not cast raytraced shadows. It works with Photonics-compatible shade
 
 ## Settings
 
-Optica's settings are shader pack options. With Euphoria Patches they are at the bottom of the pack's
-Photonics page. Packs without a Photonics page get an **Optica** page at the end of their main settings
-screen instead. Every option below starts at its highest-quality setting (off).
+Optica's settings are shader pack options, added to any shader pack that supports Photonics. They go
+at the bottom of the pack's own Photonics page, wherever the pack puts it (Euphoria Patches: Modded
+Settings > Photonics; Photon: Mods > Photonics). If that page is not laid out in two columns, it gets an
+**Optica** link instead. Packs without a Photonics page get an **Optica** page at the end of their main
+settings screen. Every option below starts at its highest-quality setting (off).
 
 - **Lighting Cache**: Off (default), or On for the cached lighting mode (replaces the pack's lighting mode).
 - **Lighting Cache Settings** (sub-page):
