@@ -79,9 +79,29 @@ public class Pipelines {
                 .withFramebuffer(framebuffer)
                 .thenFlip(framebuffer) // before the pass, so lg1 reads this frame's legacy_gi
                 .deferredPass("legacy gi", "lg0_indirect.fsh", null)
-                .withFramebuffer(null) // render into the pack's framebuffer (from write_indirect's RENDERTARGETS)
+                .withFramebuffer(writeIndirectFramebuffer(ext, properties, irisPipeline))
                 .deferredPass("write indirect", "lg1_write_indirect.fsh", null)
                 .build(ext::registerRenderer);
+    }
+
+    /**
+     * Optica: the framebuffer for passes that call the pack's write_indirect(). Null (the pack's own
+     * framebuffer, from write_indirect's RENDERTARGETS) unless the pack stores the GI in an image itself;
+     * then a full-size framebuffer the pass does not write, so the pass covers the whole screen.
+     */
+    public static @org.jetbrains.annotations.Nullable com.optica.core.iris.pipeline.texture.IrisFramebuffer writeIndirectFramebuffer(
+            PhotonicsPipeline ext,
+            PhotonicsProperties properties,
+            IrisPipeline irisPipeline
+    ) {
+        boolean usesImage = com.optica.core.iris.IrisManager.getShaderPatcher()
+                .map(patcher -> patcher.writeIndirectUsesImage())
+                .orElse(false);
+        if (!usesImage) return null;
+
+        return irisPipeline.newFramebuffer(properties.getRenderScale())
+                .addAttachment("write_indirect_target", ITextureFormat.r8(), 0)
+                .build(ext::registerComponent);
     }
 
     public static void exposureHistory(PhotonicsPipeline ext, IrisPipeline irisPipeline) {

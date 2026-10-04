@@ -68,6 +68,7 @@ void trace_ray(inout RayJob job, bool transparency) {
     result_tint_color = vec3(1.0f);
     result_block_id = -1;
     ph_result_sky_brightness = 0;
+    ray_iteration_bound_reached = false;
 
     RayIterator ray;
     ray_iter_begin(ray, job.origin, job.direction);
@@ -108,6 +109,7 @@ void trace_ray(inout RayJob job, bool transparency) {
     }
 
     if (!ray_result_is_hit(hit)) {
+        ray_iteration_bound_reached = ray.iterations <= 0;
         job.result_position = ph_legacy_miss_position - world_offset;
         return;
     }

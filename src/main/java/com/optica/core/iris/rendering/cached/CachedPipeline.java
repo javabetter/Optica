@@ -104,7 +104,7 @@ public class CachedPipeline extends PhotonicsPipeline {
 
         if (writeIndirect) {
             renderer = renderer
-                    .withFramebuffer(null) // the pack's framebuffer, from write_indirect's RENDERTARGETS
+                    .withFramebuffer(Pipelines.writeIndirectFramebuffer(this, phProperties, irisPipeline))
                     .deferredPass("write indirect", "c3_write_indirect.fsh", null);
         }
 

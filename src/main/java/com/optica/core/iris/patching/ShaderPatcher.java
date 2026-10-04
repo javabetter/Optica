@@ -131,7 +131,10 @@ public class ShaderPatcher {
 
         source = adaptForPack(relativePath.toString().replace('\\', '/'), source, shaderSourceSupplier);
 
-        if (patch == null) return source;
+        if (patch == null) {
+            recordWriteIndirect(relativePath.toString().replace('\\', '/'), source);
+            return source;
+        }
         @Nullable String loadedSource = source;
 
         source = patch.applyPatches(
@@ -145,7 +148,29 @@ public class ShaderPatcher {
                 photonicsEnabled()
         );
 
+        recordWriteIndirect(relativePath.toString().replace('\\', '/'), source);
         return source;
+    }
+
+    private static final java.util.regex.Pattern RENDER_TARGETS_DIRECTIVE =
+            java.util.regex.Pattern.compile("\\b(RENDERTARGETS|DRAWBUFFERS)\\s*:");
+
+    private boolean writeIndirectUsesImage = false;
+
+    private void recordWriteIndirect(String relativePath, @Nullable String source) {
+        if (!relativePath.equals("write_indirect.glsl") || source == null) return;
+
+        writeIndirectUsesImage = !RENDER_TARGETS_DIRECTIVE.matcher(source).find();
+    }
+
+    /**
+     * Optica: whether the pack's write_indirect() stores the GI in an image of its own (Photon, Shrimple,
+     * Eclipse) instead of declaring render targets (Euphoria Patches, BSL). Such a pass has no outputs,
+     * so Iris guessed its framebuffer, and with it the viewport: in Photon a 192x108 buffer, so only a
+     * corner of the screen got GI and shadows were pitch black everywhere else.
+     */
+    public boolean writeIndirectUsesImage() {
+        return writeIndirectUsesImage;
     }
 
     /**
@@ -156,13 +181,50 @@ public class ShaderPatcher {
             Function<IrisPackPath, @Nullable String> shaderSourceSupplier
     ) {
         if (path.ph$startsWith("/photonics")) return readPhotonicsFile(path, shaderSourceSupplier);
-        if (patch == null) return shaderSourceSupplier.apply(path);
+        if (patch == null) return replaceLegacyInternals(shaderSourceSupplier.apply(path));
 
         return patch.applyPatches(
                 path,
                 shaderSourceSupplier,
                 photonicsEnabled()
         );
+    }
+
+    private static final String TRACE_WSR_SIGNATURE = "void trace_wsr(inout RayJob job";
+
+    /**
+     * Optica: pack functions that read Photonics 0.3.5's world data directly, replaced with versions
+     * built on Optica's ray tracer (shaders/compat). Matched by content rather than by pack name, so it
+     * works however the pack's folder or zip is named. So far: Eclipse's voxel reflections (trace_wsr).
+     */
+    private static @Nullable String replaceLegacyInternals(@Nullable String source) {
+        if (source == null) return null;
+
+        int start = source.indexOf(TRACE_WSR_SIGNATURE);
+        if (start < 0) return source;
+
+        int end = functionEnd(source, start);
+        if (end < 0 || !source.substring(start, end).contains("root_array")) return source;
+
+        var replacement = Fs.tryReadString(PHOTONICS_SHADERS_PATH.resolve("compat").resolve("trace_wsr.glsl"));
+        if (replacement.isEmpty()) return source;
+
+        return source.substring(0, start) + replacement.get() + source.substring(end);
+    }
+
+    /** The index just past the closing brace of the function whose definition starts at {@code start}, or -1. */
+    private static int functionEnd(String source, int start) {
+        int open = source.indexOf('{', start);
+        if (open < 0) return -1;
+
+        int depth = 0;
+        for (int i = open; i < source.length(); i++) {
+            char c = source.charAt(i);
+            if (c == '{') depth++;
+            else if (c == '}' && --depth == 0) return i + 1;
+        }
+
+        return -1;
     }
 
     private static final java.util.regex.Pattern INDIRECT_LIGHT_COLOR =

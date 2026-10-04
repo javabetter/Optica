@@ -17,4 +17,7 @@ int ph_result_sky_brightness = 0;
 // When set, legacy trace_ray stops once the ray leaves this block (rt space). ivec3(-9999) disables it.
 ivec3 ray_constraint = ivec3(-9999);
 
+// Whether the last legacy trace ran out of iterations instead of hitting or leaving the world.
+bool ray_iteration_bound_reached = false;
+
 #endif

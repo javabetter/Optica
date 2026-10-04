@@ -653,3 +653,17 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   no lighting mode means no samplers; samplers.glsl now falls back to the OFF stubs).
 - Seen once and not reproduced: right after switching from the Overworld to the End, the torch lit only
   its own block (as if shadow rays hit stale voxels); later switches were all fine.
+
+**Follow-up: black shadows in Photon/Shrimple, Eclipse with Voxel Reflections**
+- Packs whose write_indirect() does an imageStore (Photon, Shrimple, Eclipse) declare no render
+  targets, so the write-indirect pass (lg1/c3) had no outputs and Iris guessed its framebuffer and
+  viewport: in Photon its 192x108 colortex4, so GI reached only the bottom-left corner. ShaderPatcher
+  records whether write_indirect.glsl has a RENDERTARGETS/DRAWBUFFERS directive; without one the pass
+  renders into a full-size R8 framebuffer of Optica's (Pipelines.writeIndirectFramebuffer).
+- Photon sets indirect_light_color inside load_fragment_variables(). Photonics' GI pass calls that
+  (prepare_frag); Optica's reads fast_frag_data instead, so the sky color stayed zero. The lighting
+  interface now calls load_fragment_variables() once before reading it.
+- Eclipse's trace_wsr() walks 0.3.5's world buffers (root_array, cb_array, ph_get_world_index).
+  Supporting packs never get a patch, so ShaderPatcher replaces that function by content (signature
+  plus root_array) with shaders/compat/trace_wsr.glsl on Optica's ray iterator, and the legacy API now
+  has ray_iteration_bound_reached.
