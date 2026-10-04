@@ -1,3 +1,22 @@
+// Optica: inside Photonics' own passes the pack's shader_interface.glsl is included before the light
+// code, and some packs (e.g. Eclipse) include this file at the top of their interface, before defining
+// the helpers their light modifiers use. There, provide the uniforms only and note the request;
+// interface/world_interface.glsl includes the full API after the pack's interface.
+#if defined PH_DEFER_LEGACY_API
+#include "/photonics/uniforms.glsl"
+#ifndef PH_LEGACY_API_REQUESTED
+#define PH_LEGACY_API_REQUESTED
+#endif
+#else
+
+// Optica: included by one of the pack's own programs (not a Photonics pass). As in Photonics 0.3.x, the
+// API then brings the sampler functions (sample_photonics_direct, ...) and leaves out the pack's
+// attenuation modifier, a 0.4 hook written for Photonics' passes (Shrimple's re-includes a library
+// its programs already include).
+#if !defined PH_IN_PHOTONICS_PASS && !defined PH_LEGACY_PACK_PROGRAM
+#define PH_LEGACY_PACK_PROGRAM
+#endif
+
 #ifndef PH_LEGACY_API_INCLUDE
 #define PH_LEGACY_API_INCLUDE
 
@@ -12,6 +31,10 @@
 #include "/photonics/light_list.glsl"
 #include "/photonics/tracing.glsl"
 #include "/photonics/internal/legacy/globals.glsl"
+#ifdef PH_LEGACY_PACK_PROGRAM
+#include "/photonics/ph_samplers.glsl"
+#include "/photonics/internal/impl/is_hand.glsl"
+#endif
 
 struct RayJob {
     vec3 origin;          // Ray origin in rt space (world position - world_offset).
@@ -143,5 +166,7 @@ Light load_main_hand_light() {
 Light load_off_hand_light() {
     return get_off_hand_light();
 }
+
+#endif
 
 #endif

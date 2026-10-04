@@ -129,6 +129,8 @@ public class ShaderPatcher {
             }
         }
 
+        source = adaptForPack(relativePath.toString().replace('\\', '/'), source, shaderSourceSupplier);
+
         if (patch == null) return source;
         @Nullable String loadedSource = source;
 
@@ -161,6 +163,46 @@ public class ShaderPatcher {
                 shaderSourceSupplier,
                 photonicsEnabled()
         );
+    }
+
+    private static final java.util.regex.Pattern INDIRECT_LIGHT_COLOR =
+            java.util.regex.Pattern.compile("(?m)^\\s*vec3\\s+indirect_light_color\\b");
+
+    /**
+     * Optica: Optica's default for interface/lighting_interface.glsl (sun and sky light for GI) reads the
+     * pack's indirect_light_color, which Photonics 0.3.x interfaces declared. Packs that do not (e.g.
+     * Shrimple) failed to compile; there, the default uses the pack's get_sky_color() instead.
+     */
+    private static @Nullable String adaptForPack(String relativePath, @Nullable String source, Function<IrisPackPath, @Nullable String> packSource) {
+        if (source != null && relativePath.equals("rendering/upsample.glsl")) return adaptUpsample(source, packSource);
+        if (source == null || !relativePath.equals("interface/lighting_interface.glsl")) return source;
+        if (!source.contains("indirect_light_color")) return source; // the pack's own version
+
+        String packInterface = packSource.apply(IrisPackPath.fromAbsolutePath("/photonics/shader_interface.glsl"));
+        if (packInterface == null || INDIRECT_LIGHT_COLOR.matcher(packInterface).find()) return source;
+
+        return "#define PH_PACK_HAS_NO_INDIRECT_LIGHT_COLOR\n" + source;
+    }
+
+    /**
+     * Optica: the upsampler (run inside the pack's programs by sample_photonics_direct) reads the full
+     * resolution depth from depthtex0. Packs can replace a depth texture with their own in some stages
+     * ("texture.deferred.depthtex0 = ..." in Photon, a 3D atmosphere table), which failed to compile and
+     * left Photon without Photonics' light. Use the first depth texture the pack leaves alone.
+     */
+    private static String adaptUpsample(String source, Function<IrisPackPath, @Nullable String> packSource) {
+        String properties = packSource.apply(IrisPackPath.fromAbsolutePath("/shaders.properties"));
+        if (properties == null) return source;
+
+        for (int index = 0; index <= 2; index++) {
+            var overridden = java.util.regex.Pattern.compile("(?m)^\\s*texture\\.\\w+\\.depthtex" + index + "\\s*=");
+            if (overridden.matcher(properties).find()) continue;
+            if (index == 0) return source;
+
+            return "#define PH_UPSAMPLE_DEPTH depthtex" + index + "\n#define PH_UPSAMPLE_DEPTH_INDEX " + index + "\n" + source;
+        }
+
+        return source;
     }
 
     /**

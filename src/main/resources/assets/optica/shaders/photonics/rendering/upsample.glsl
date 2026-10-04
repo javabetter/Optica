@@ -8,7 +8,16 @@
 // Each full-resolution pixel instead weights the four nearest low-resolution texels by how close their
 // depth is to its own, so light only comes from the same surface.
 
+// The pack's depth texture. A pack can replace depthtex0 with its own texture in some stages (Photon puts
+// a 3D atmosphere table there in deferred); Optica then picks another one (ShaderPatcher.adaptForPack).
+#if !defined PH_UPSAMPLE_DEPTH
 //ph_required: uniform sampler2D depthtex0;
+#define PH_UPSAMPLE_DEPTH depthtex0
+#elif PH_UPSAMPLE_DEPTH_INDEX == 1
+//ph_required: uniform sampler2D depthtex1;
+#else
+//ph_required: uniform sampler2D depthtex2;
+#endif
 //ph_required: uniform sampler2D fast_frag_data;
 //ph_required: uniform float near, far;
 
@@ -22,7 +31,7 @@ PhUpsample ph_upsample(vec2 tex_coord) {
     PhUpsample result;
 
     ivec2 low_size = textureSize(fast_frag_data, 0);
-    ivec2 full_size = textureSize(depthtex0, 0);
+    ivec2 full_size = textureSize(PH_UPSAMPLE_DEPTH, 0);
 
     if (low_size == full_size) {
         ivec2 texel = clamp(ivec2(tex_coord * vec2(low_size)), ivec2(0), low_size - 1);
@@ -34,7 +43,7 @@ PhUpsample ph_upsample(vec2 tex_coord) {
 
     result.exact = false;
 
-    float depth = texture(depthtex0, tex_coord).r;
+    float depth = texture(PH_UPSAMPLE_DEPTH, tex_coord).r;
     float linear_depth = near * far / (far + depth * (near - far));
     float tolerance = max(linear_depth, 0.05f) * 0.03f;
 

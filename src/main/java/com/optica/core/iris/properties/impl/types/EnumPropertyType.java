@@ -26,6 +26,8 @@ public class EnumPropertyType implements PropertyType<Enum<?>> {
             }
         }
 
+        // Optica: upstream never called this, so an unknown value fell back silently.
+        badEnum.run();
         return enumConstants[0];
     }
 

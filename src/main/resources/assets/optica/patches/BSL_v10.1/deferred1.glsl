@@ -16,6 +16,7 @@ uniform sampler2D colortex12;
 
 #replace "vec4 color = texture2D(colortex0, texCoord);"
 vec4 color = texture2D(colortex0, texCoord);
+#ifdef PHOTONICS_ENABLED // Optica: colortex10/12 hold nothing with Photonics off
 color.rgb += (
     #ifndef PH_RESTIR_COMBINED_GI
     texture2D(colortex12, texCoord).rgb + // indirect
@@ -23,4 +24,5 @@ color.rgb += (
     sample_photonics_handheld(texCoord) +
     sample_photonics_direct(texCoord)
 ) * texture2D(colortex10, texCoord).rgb; // albedo
+#endif
 #endreplace

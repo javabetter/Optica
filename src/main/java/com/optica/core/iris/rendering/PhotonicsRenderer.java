@@ -23,6 +23,9 @@ public enum PhotonicsRenderer {
     OFF(OffProperties.class, OffPipeline::new),
     BASIC(SharpProperties.class, SharpPipeline::new),
     SHARP(SharpProperties.class, SharpPipeline::new),
+    // Optica: Photonics 0.4's name for BASIC (e.g. Photon). Unknown names fall back to OFF, so Photon
+    // got no block light at all.
+    SIMPLE(SharpProperties.class, SharpPipeline::new),
     RESTIR(RestirProperties.class, RestirPipeline::new),
     // Optica: selected on the Optica page of the pack's settings menu (see OpticaSettings), not by packs.
     CACHED(CachedProperties.class, CachedPipeline::new);

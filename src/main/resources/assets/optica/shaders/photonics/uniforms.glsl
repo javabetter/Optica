@@ -25,4 +25,15 @@
 //ph_required: uniform bool main_hand_has_light;
 //ph_required: uniform mat4 ph_main_hand_light;
 
+// Optica: Photonics 0.3.x names for the camera's world position, still used by packs written for it
+// (e.g. Eclipse's shader_interface.glsl).
+//ph_required: uniform vec3 cameraPosition;
+//ph_required: uniform vec3 previousCameraPosition;
+#ifndef world_camera_position
+#define world_camera_position cameraPosition
+#endif
+#ifndef previous_world_camera_position
+#define previous_world_camera_position previousCameraPosition
+#endif
+
 #endif

@@ -623,3 +623,33 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
     the upsampling code uses; it now goes before `//Common Variables//`.
 - Verified in the dev client: BSL v10.1 and 10.1.8 compile with no errors (End and Overworld), lava
   light is raytraced, and BSL's Photonics page shows Optica's settings. Euphoria Patches unchanged.
+
+**Other Photonics packs from their GitHubs (Photon 15458c0, Shrimple 8be03fa, Eclipse 3c18afc)**
+- Photon sets `photonics.lightingMode = SIMPLE` (0.4's name for BASIC). PhotonicsRenderer had no such
+  constant and the enum parser falls back to the first constant (OFF) without the warning it was meant
+  to log, so Photon got no block light, and `write_indirect` (its GI) never ran: pitch black shadows.
+  SIMPLE is now an alias of BASIC, and unknown values are logged.
+- Photon puts a 3D atmosphere table in `depthtex0` for its deferred stage
+  (`texture.deferred.depthtex0 = ... TEXTURE_3D`). The upsampler runs inside the pack's programs
+  (sample_photonics_direct), so ShaderPatcher.adaptForPack switches it to the first depth texture the
+  pack's shaders.properties does not replace.
+- Photon on llvmpipe (test container only): `d4a_generate_sky_sh` uses 36 KB of shared memory (llvmpipe
+  allows 32 KB), and `gbuffers_skytextured` / `weather` read `rainStrength` without declaring it. Both
+  are Photon's own; the dev copy is edited to test around them.
+- Shrimple: with Photonics shadows on, its shadow pass discards all terrain, so Sodium's
+  `u_RegionOffset` is optimised out. Iris 1.11.3 requires that uniform (NPE, pipeline disabled); 1.11.4
+  binds it optionally (Shrimple tested on Iris 1.11.4 / Sodium 0.9.2).
+- Shrimple and Eclipse use the 0.3-style API in an order Optica's legacy layer did not handle: they
+  declare uniforms after Photonics' code uses them (UniformPatcher is now order-aware), lack
+  `indirect_light_color` (the GI interface falls back to get_sky_color), define their own attenuation,
+  and call `ph_is_hand` / `sample_photonics_direct` from their own programs (photonics.glsl now gives
+  pack programs the full legacy API and defers it in Photonics' passes until the interface is
+  included). Eclipse's Voxel Reflections use 0.3.5 internals (root_array, ph_get_world_index) and stay
+  unsupported.
+- BSL patch: lights reach the shaders at their configured intensity (torch 0.12); packs scale them in
+  light_modifier (EP replaces the colors with full-strength ones). BSL had none, so its Photonics light
+  was about 8x dimmer than its own block light. The patch now scales lights by 8, and its block light
+  and deferred1 changes only apply with BSL's Photonics toggle on (with it off, BSL failed to compile:
+  no lighting mode means no samplers; samplers.glsl now falls back to the OFF stubs).
+- Seen once and not reproduced: right after switching from the Overworld to the End, the torch lit only
+  its own block (as if shadow rays hit stale voxels); later switches were all fine.

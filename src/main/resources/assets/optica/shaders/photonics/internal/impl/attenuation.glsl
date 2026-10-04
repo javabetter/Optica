@@ -1,4 +1,11 @@
+// Optica: the pack's own programs use Photonics' attenuation (see photonics.glsl).
+#ifdef PH_LEGACY_PACK_PROGRAM
+#ifndef PH_ATTENUATION_MODIFIER_DISABLED
+#define PH_ATTENUATION_MODIFIER_DISABLED
+#endif
+#else
 #include "/photonics/modifiers/attenuation_modifier.glsl"
+#endif
 
 #ifdef PH_ATTENUATION_MODIFIER_DISABLED
 vec3 ph_compute_attenuation(
