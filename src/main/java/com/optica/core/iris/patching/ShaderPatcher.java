@@ -140,7 +140,7 @@ public class ShaderPatcher {
 
                     return shaderSourceSupplier.apply(p);
                 },
-                IrisManager.getPropertiesOrThrow().isEnabled()
+                photonicsEnabled()
         );
 
         return source;
@@ -159,8 +159,31 @@ public class ShaderPatcher {
         return patch.applyPatches(
                 path,
                 shaderSourceSupplier,
-                IrisManager.getPropertiesOrThrow().isEnabled()
+                photonicsEnabled()
         );
+    }
+
+    /**
+     * Optica: applies the patch to a pack file Iris reads on its own rather than through the include
+     * graph (shaders.properties, language files). Without this, a patched pack (e.g. BSL) got its patched
+     * shaders but not its patched menu, Photonics settings or labels.
+     */
+    public String patchPackFile(String absolutePath, String source) {
+        if (patch == null || source == null) return source;
+
+        IrisPackPath path = IrisPackPath.fromAbsolutePath(absolutePath);
+        return patch.applyPatches(path, p -> p.equals(path) ? source : null, photonicsEnabled());
+    }
+
+    /**
+     * Optica: whether the pack's Photonics toggle is on. Iris reads a pack's shader files (building its
+     * include graph) before its shaders.properties, so on a pack's first load nothing is known yet. Packs
+     * that need a patch have Photonics force-enabled (IrisManager.setupShaderPatcher), so "on" is what the
+     * properties will say. Upstream threw here, which made every patched pack (e.g. BSL) fail to load,
+     * and crash the game when it happened at startup.
+     */
+    private static boolean photonicsEnabled() {
+        return IrisManager.getProperties().map(properties -> properties.isEnabled()).orElse(true);
     }
 
     private static void wipeDebug() {

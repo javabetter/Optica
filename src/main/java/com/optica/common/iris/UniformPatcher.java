@@ -53,6 +53,13 @@ public class UniformPatcher {
                 uniforms.add(token.getText());
             }
 
+            // Optica: ',' continues a declaration list ("uniform float far, near;"); upstream reset
+            // here and missed every name after the first, so a required uniform could be declared twice.
+            case ',' -> {
+                if (parsingState != 2) parsingState = 0;
+                return;
+            }
+
             default -> {
                 parsingState = 0;
                 return;
@@ -78,6 +85,8 @@ public class UniformPatcher {
                 uniformBuilder.setLength(0);
 
                 if (uniforms.contains(uniform)) return;
+                // Optica: two files may require the same uniform; declare it once.
+                uniforms.add(uniform);
                 if (uniformCount[0]++ > 0) str.append(", ");
 
                 str.append(uniform);

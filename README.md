@@ -20,7 +20,9 @@ Entities do not cast raytraced shadows. It works with Photonics-compatible shade
 
 ## Settings
 
-Optica's settings are shader pack options, added to any shader pack that supports Photonics. They go
+Optica's settings are shader pack options, added to any shader pack that supports Photonics (tested:
+Euphoria Patches 1.10.5, BSL v10.1 - 10.1.8 through Photonics' built-in BSL patch, and Photon's GitHub
+version; Photon's releases do not support Photonics yet). They go
 at the bottom of the pack's own Photonics page, wherever the pack puts it (Euphoria Patches: Modded
 Settings > Photonics; Photon: Mods > Photonics). If that page is not laid out in two columns, it gets an
 **Optica** link instead. Packs without a Photonics page get an **Optica** page at the end of their main

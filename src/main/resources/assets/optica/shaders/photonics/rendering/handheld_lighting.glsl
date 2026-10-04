@@ -5,6 +5,8 @@
 #define PH_HANDHELD_RAY_ITERATIONS 40
 
 //ph_required: uniform vec3 relativeEyePosition;
+//ph_required: uniform mat4 gbufferProjection;
+//ph_required: uniform mat4 gbufferModelView;
 
 struct HandheldSample {
     Light light;

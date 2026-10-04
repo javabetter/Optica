@@ -21,6 +21,18 @@ uniform int isEyeInWater;
 
 uniform sampler2D colortex6, colortex10, colortex11;
 
+// Optica: uniforms this interface and the BSL libraries it includes use, which BSL declares in its
+// program files rather than the libraries (shadowFade is a custom uniform from BSL's shaders.properties).
+// Photonics' passes do not declare them; plain declarations are safe, since Photonics' own required
+// uniforms skip names a program already declares. (//ph_required lines do not survive patching.)
+uniform float frameTimeCounter;
+uniform float rainStrength;
+uniform float shadowFade;
+uniform sampler2D depthtex0;
+uniform sampler2D noisetex;
+uniform mat4 shadowModelView;
+uniform mat4 shadowProjection;
+
 #include "/lib/settings.glsl"
 
 float GetLuminance(vec3 color) {

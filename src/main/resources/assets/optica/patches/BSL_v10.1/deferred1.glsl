@@ -1,7 +1,8 @@
 #file "/program/deferred1.glsl"
 
-#replace "#ifdef FSH"
-#ifdef FSH
+#replace "//Common Variables//"
+// Optica: after BSL's own uniforms, which Photonics' sampling code uses (depthtex0, near, far); GLSL
+// needs them declared before that code. Upstream included it at the start of FSH.
 #include "/photonics/ph_samplers.glsl"
 
 uniform sampler2D colortex10;
@@ -9,6 +10,8 @@ uniform sampler2D colortex10;
 #ifndef PH_RESTIR_COMBINED_GI
 uniform sampler2D colortex12;
 #endif
+
+//Common Variables//
 #endreplace
 
 #replace "vec4 color = texture2D(colortex0, texCoord);"

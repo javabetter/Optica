@@ -599,3 +599,27 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   sections per second. The world compiler now hashes the voxel blocks (blocks with model parts) of
   each 4x4x4 cube and reports only the changed cubes' bounding box (unloaded counts as empty), and the
   cache adds the 16-block light margin around that instead of around the whole section.
+
+**Photonics' BSL patch (BSL v10.1 - 10.1.8)**
+- Photon's releases (v1.3b) have no Photonics support yet; only its GitHub main branch does. BSL relies
+  on the patch Photonics ships (`patches/BSL_v10.1`, written for the 0.3.5 API).
+- Loading BSL threw in `ShaderPatcher` (`getPropertiesOrThrow`): Iris builds the include graph before
+  reading shaders.properties, so Photonics' properties do not exist yet on a pack's first load; Iris
+  then failed the pack, and at startup its error screen crashed the game. Patched packs have Photonics
+  force-enabled, so the patcher now assumes "enabled" until the properties are known.
+- Iris reads shaders.properties and language files straight from disk, so the patch's menu, Photonics
+  settings and labels were never applied (no Photonics toggle or page). ShaderPackMixin now runs
+  shaders.properties through the patch, LanguageMapMixin merges the patched en_US labels, and Optica's
+  menu step also runs for patched packs.
+- Compile errors once the Photonics passes actually ran:
+  - The patch's shader_interface uses uniforms BSL declares in its program files (frameTimeCounter,
+    rainStrength, shadowFade, depthtex0, noisetex, shadowModelView, shadowProjection); now declared
+    there. `//ph_required` lines do not survive patching (comment lines are dropped).
+  - UniformPatcher reset on ',' and so missed every name after the first in `uniform float far, near;`,
+    and never recorded the uniforms it added itself, so two files requiring one uniform declared it
+    twice. Both fixed.
+  - h0 used gbufferProjection / gbufferModelView without requiring them (EP's interface declares them).
+  - The patch included ph_samplers.glsl at the start of deferred1's FSH, before BSL's uniforms that
+    the upsampling code uses; it now goes before `//Common Variables//`.
+- Verified in the dev client: BSL v10.1 and 10.1.8 compile with no errors (End and Overworld), lava
+  light is raytraced, and BSL's Photonics page shows Optica's settings. Euphoria Patches unchanged.

@@ -38,7 +38,8 @@ public abstract class ShaderPropertiesMixin {
     ) {
         // Optica: its settings page in the pack's settings menu, for packs Optica runs with. Iris reads the
         // menu layout (screens, sliders) from the original, not the preprocessed, properties.
-        if (preprocessed.containsKey("photonics.enabled"))
+        boolean patched = IrisManager.getShaderPatcher().map(patcher -> patcher.hasPatch()).orElse(false);
+        if (preprocessed.containsKey("photonics.enabled") || patched)
             OpticaSettings.addMenu(original);
 
         IrisManager.setupProperties(preprocessed, LoggerFactory.getLogger("Iris"), name -> optionValue(shaderPackOptions, name));

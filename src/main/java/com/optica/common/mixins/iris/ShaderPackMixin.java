@@ -35,6 +35,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 
 @Mixin(ShaderPack.class)
@@ -59,6 +60,23 @@ public abstract class ShaderPackMixin implements IrisPack {
 
         supportsPhotonics = properties.containsKey("photonics.enabled");
         IrisManager.setupShaderPatcher(this, Boolean.parseBoolean(changedConfigs.getOrDefault("PHOTONICS_ENABLED", "true")));
+    }
+
+    /** Optica: Iris reads shaders.properties straight from disk; run it through the pack's patch. */
+    @WrapOperation(
+            method = "<init>(Ljava/nio/file/Path;Ljava/util/Map;Lcom/google/common/collect/ImmutableList;Z)V",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/irisshaders/iris/shaderpack/ShaderPack;loadProperties(Ljava/nio/file/Path;Ljava/lang/String;)Ljava/util/Optional;"
+            )
+    )
+    private Optional<String> optica$patchProperties(Path root, String name, Operation<Optional<String>> original) {
+        Optional<String> source = original.call(root, name);
+        if (!"shaders.properties".equals(name)) return source;
+
+        return source.map(contents -> IrisManager.getShaderPatcher()
+                .map(patcher -> patcher.patchPackFile("/shaders.properties", contents))
+                .orElse(contents));
     }
 
     @Override
