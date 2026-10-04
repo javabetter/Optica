@@ -6,6 +6,7 @@ Optica: Photonics ported to Minecraft 26.1.2 (Fabric), with Euphoria Patches sup
 
 **Next version**
 - BSL now works with Optica (v10.1 through 10.1.8, through Photonics' built-in BSL patch). It used to fail to load, which crashed the game when it happened at startup. Its Photonics toggle, Photonics page and Optica's settings now appear in BSL's menu.
+- Settings that a shader pack gives no label show a readable name instead of the raw one (RESTIR_INITIAL_SAMPLES becomes "ReSTIR Initial Samples", photonics_sharp becomes "Photonics Sharp").
 - Fixed shader compile errors in packs that declare several uniforms on one line (`uniform float far, near;`) or include Photonics code from more than one place.
 - Optica's settings now appear in any shader pack that supports Photonics, not just Euphoria Patches. They are added to the pack's own Photonics page wherever it sits in the menu (found by the Photonics settings it lists, not by its name), as a link to an Optica page if that page is not laid out in two columns, or on an Optica page at the end of the main menu if the pack has no Photonics page.
 

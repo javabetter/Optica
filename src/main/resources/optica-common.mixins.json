@@ -14,6 +14,7 @@
     "iris.ShaderPackMixin",
     "iris.ShaderPackAccessor",
     "iris.ShaderPropertiesMixin",
+    "iris.GuiUtilMixin",
     "iris.LanguageMapMixin",
     "iris.extension.LevelRendererMixin",
     "iris.extension.RenderSectionManagerMixin",
