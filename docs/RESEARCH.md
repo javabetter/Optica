@@ -667,3 +667,7 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   Supporting packs never get a patch, so ShaderPatcher replaces that function by content (signature
   plus root_array) with shaders/compat/trace_wsr.glsl on Optica's ray iterator, and the legacy API now
   has ray_iteration_bound_reached.
+- Shrimple with LIGHTING_COLORED on and PHOTONICS_HAND_LIGHT_ENABLED off: deferred9 includes
+  block-light.glsl itself and through photonics.glsl -> light.glsl -> its light_modifier.glsl (no include
+  guard), so GetBlockColorRange was defined twice (0.3.5 included the modifier there too). Pack programs
+  never load lights, so light.glsl now skips the light modifier under PH_LEGACY_PACK_PROGRAM.

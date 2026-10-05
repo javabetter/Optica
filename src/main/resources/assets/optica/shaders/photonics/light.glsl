@@ -19,7 +19,17 @@ struct Light {
     float block_radius;
 };
 
+// Optica: the pack's own programs (through photonics.glsl) never load lights, so they skip the pack's
+// light modifier. Modifiers include pack libraries the program may include itself: in Shrimple with
+// Colored Lighting on and Photonics hand light off, deferred9 got block-light.glsl twice and failed
+// ("GetBlockColorRange is already defined").
+#ifdef PH_LEGACY_PACK_PROGRAM
+#ifndef PH_LIGHT_MODIFIER_DISABLED
+#define PH_LIGHT_MODIFIER_DISABLED
+#endif
+#else
 #include "/photonics/modifiers/light_modifier.glsl"
+#endif
 #include "/photonics/internal/impl/attenuation.glsl"
 
 Light new_light_from_vec4(

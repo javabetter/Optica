@@ -13,6 +13,7 @@ Optica: Photonics ported to Minecraft 26.1.2 (Fabric), with Euphoria Patches sup
 - Shrimple and Eclipse now load. Both failed with shader compile errors (uniforms and functions they expect Photonics to provide in a different order or under Photonics 0.3's names). Shrimple also needs **Iris 1.11.4** or newer: Iris 1.11.3 fails to load it with "No uniform exists with name: u_RegionOffset", with or without Optica.
 - Eclipse loads with its default settings: its Voxel Reflections read Photonics 0.3.5's world data directly, so Optica now swaps that code for a version that uses Optica's ray tracer (mirror iron blocks reflect as plain blocks).
 - Fixed pitch black shadows (no GI) in Photon, Shrimple and Eclipse: these packs store GI in an image of their own, and Optica's GI pass for them covered only a small corner of the screen (in Photon, the size of one of its small buffers). Photon's sky light for GI also stayed at zero.
+- Fixed Shrimple failing to load with Colored Lighting on and Photonics hand light off ("GetBlockColorRange is already defined").
 - BSL: block light from Photonics was much dimmer than BSL's own (a torch lit about 3 blocks, so torch shadows were barely visible). It now roughly matches BSL's normal block light. Turning Photonics off in BSL's settings no longer fails to load or removes all block light.
 - Unknown values in a pack's Photonics settings are now logged instead of silently falling back to the default.
 
