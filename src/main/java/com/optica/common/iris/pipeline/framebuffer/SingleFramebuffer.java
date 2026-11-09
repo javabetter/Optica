@@ -61,7 +61,7 @@ public class SingleFramebuffer extends GlFramebuffer implements InternalIrisFram
         int width = Minecraft.getInstance().getWindow().getWidth();
         int height = Minecraft.getInstance().getWindow().getHeight();
         GL11.glViewport(0, 0, width, height);
-        Minecraft.getInstance().getMainRenderTarget().iris$bindFramebuffer();
+        Minecraft.getInstance().gameRenderer.mainRenderTarget().iris$bindFramebuffer();
     }
 
     @Override

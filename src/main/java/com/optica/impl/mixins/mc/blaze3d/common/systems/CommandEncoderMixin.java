@@ -36,12 +36,6 @@ public abstract class CommandEncoderMixin implements ICommandEncoder {
     public abstract void writeToBuffer(GpuBufferSlice destination, ByteBuffer data);
 
     @Shadow
-    public abstract GpuBuffer.MappedView mapBuffer(GpuBuffer buffer, boolean read, boolean write);
-
-    @Shadow
-    public abstract GpuBuffer.MappedView mapBuffer(GpuBufferSlice slice, boolean read, boolean write);
-
-    @Shadow
     public abstract void copyToBuffer(GpuBufferSlice source, GpuBufferSlice target);
 
     @Override
@@ -71,12 +65,13 @@ public abstract class CommandEncoderMixin implements ICommandEncoder {
 
     @Override
     public IGpuBuffer.MappedView ph$mapBuffer(IGpuBuffer buffer, boolean readable, boolean writeable) {
-        return (IGpuBuffer.MappedView) mapBuffer((GpuBuffer) buffer, readable, writeable);
+        // 26.2: mapping moved from the command encoder to the buffer.
+        return (IGpuBuffer.MappedView) (Object) ((GpuBuffer) buffer).map(readable, writeable);
     }
 
     @Override
     public IGpuBuffer.MappedView ph$mapBuffer(IGpuBufferSlice bufferSlice, boolean readable, boolean writeable) {
-        return (IGpuBuffer.MappedView) mapBuffer((GpuBufferSlice) (Object) bufferSlice, readable, writeable);
+        return (IGpuBuffer.MappedView) (Object) ((GpuBufferSlice) (Object) bufferSlice).map(readable, writeable);
     }
 
     @Override

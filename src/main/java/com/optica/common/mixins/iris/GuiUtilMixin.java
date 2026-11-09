@@ -3,7 +3,7 @@ package com.optica.common.mixins.iris;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.optica.core.config.SettingLabels;
 import net.irisshaders.iris.gui.GuiUtil;
-import net.minecraft.client.resources.language.I18n;
+import net.minecraft.locale.Language;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import org.spongepowered.asm.mixin.Mixin;
@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.At;
 public abstract class GuiUtilMixin {
     @ModifyReturnValue(method = "translateOrDefault", at = @At("RETURN"))
     private static MutableComponent optica$readableFallback(MutableComponent result, MutableComponent defaultText, String translationDesc, Object... format) {
-        if (result != defaultText || translationDesc == null || I18n.exists(translationDesc)) return result;
+        if (result != defaultText || translationDesc == null || Language.getInstance().has(translationDesc)) return result;
         if (!(translationDesc.startsWith("option.") || translationDesc.startsWith("screen.") || translationDesc.startsWith("value."))) return result;
 
         String raw = defaultText.getString();

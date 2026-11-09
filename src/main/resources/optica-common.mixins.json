@@ -47,6 +47,8 @@
     "meshing.ReloadableTextureMixin",
     "meshing.DynamicTextureMixin",
     "meshing.FeatureRenderDispatcherMixin",
+    "meshing.FeatureRenderDispatcherAccessor",
+    "meshing.RenderTypeFeatureRendererMixin",
     "meshing.OuterWrappedRenderTypeAccessor"
   ],
   "mixins": [

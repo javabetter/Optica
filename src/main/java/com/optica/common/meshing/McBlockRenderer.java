@@ -6,13 +6,12 @@ import com.optica.api.mc.Id;
 import com.optica.common.iris.IrisUtil;
 import com.optica.common.meshing.impl.BlockBuilderBufferSource;
 import com.optica.common.meshing.impl.BlockSetBuilder;
-import com.optica.common.meshing.impl.EmptyBufferSource;
-import com.optica.common.meshing.impl.EmptyOutlineBufferSource;
-import com.optica.common.meshing.impl.FeatureRendererExt;
+import com.optica.common.mixins.meshing.FeatureRenderDispatcherAccessor;
 import com.optica.core.rendering.world.bakery.BlockBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.StagedVertexBuffer;
 import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.client.renderer.block.BlockQuadOutput;
@@ -60,27 +59,26 @@ public class McBlockRenderer {
 
     private final LevelRenderState levelRenderState = new LevelRenderState();
     private final SubmitNodeStorage submitNodeStorage = new SubmitNodeStorage();
-    private final FeatureRenderDispatcher featureRenderDispatcher = new FeatureRenderDispatcher(
-            submitNodeStorage,
-            modelManager,
-            bufferSource,
-            Minecraft.getInstance().getAtlasManager(),
-            EmptyOutlineBufferSource.INSTANCE,
-            EmptyBufferSource.INSTANCE,
-            Minecraft.getInstance().font,
-            Minecraft.getInstance().gameRenderer.getGameRenderState()
-    );
+    // Optica (26.2): the dispatcher takes its staged vertex buffer from RenderBuffers. Optica's dispatcher
+    // gets one of its own (CPU memory only; nothing is ever uploaded from it), so preparing frames on the
+    // chunk compiler threads never touches the game's buffer.
+    private final FeatureRenderDispatcher featureRenderDispatcher = createDispatcher();
 
     private final SimpleMeshState.HashStorage hashStorage = new SimpleMeshState.HashStorage();
 
-    public McBlockRenderer() {
-        var featureRenderer = (FeatureRendererExt) featureRenderDispatcher;
-
-        featureRenderer.setRenderShadows(false);
-        featureRenderer.setRenderFlames(false);
-        featureRenderer.setRenderNametags(false);
-        featureRenderer.setRenderText(false);
-        featureRenderer.setRenderParticles(false);
+    private static FeatureRenderDispatcher createDispatcher() {
+        var minecraft = Minecraft.getInstance();
+        var dispatcher = new FeatureRenderDispatcher(
+                minecraft.gameRenderer.renderBuffers(),
+                minecraft.getModelManager(),
+                minecraft.getAtlasManager(),
+                minecraft.font,
+                minecraft.gameRenderer.gameRenderState()
+        );
+        ((FeatureRenderDispatcherAccessor) dispatcher).optica$setStagedVertexBuffer(
+                new StagedVertexBuffer(() -> "Optica block entity capture", 1 << 16)
+        );
+        return dispatcher;
     }
 
     public McMeshState extractMeshState(
@@ -243,7 +241,7 @@ public class McBlockRenderer {
             BlockBuilder builder
     ) {
         builder.useOffset(0f, 0f, 0f);
-        bufferSource.setBlockBuilder(builder);
+        bufferSource.begin(builder);
 
         levelRenderState.reset();
 
@@ -269,9 +267,11 @@ public class McBlockRenderer {
             renderer.submit(renderState, poseStack, submitNodeStorage, levelRenderState.cameraRenderState);
             poseStack.popPose();
 
-            featureRenderDispatcher.renderAllFeatures();
+            // Optica (26.2): preparing the frame builds the geometry (into the block builder, see
+            // RenderTypeFeatureRendererMixin); nothing is drawn. Closing it clears the prepared groups.
+            featureRenderDispatcher.prepareFrame(submitNodeStorage).close();
         } finally {
-            bufferSource.setBlockBuilder(null);
+            bufferSource.end();
         }
     }
 

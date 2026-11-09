@@ -14,11 +14,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(LevelRenderer.class)
 public abstract class LevelRendererMixin {
     @Inject(
-            method = "renderLevel",
+            method = "render",
             at = @At("HEAD"),
             order = 900
     )
-    // Only marks the frame start; takes no target arguments so renderLevel's signature (changed in 26.1) doesn't matter.
+    // Only marks the frame start; takes no target arguments, so the signature does not matter (26.2 renamed renderLevel to render).
     public void renderLevel(CallbackInfo ci) {
         IrisManager.onFrameBegin();
     }

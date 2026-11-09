@@ -9,24 +9,39 @@ import com.optica.common.mixins.meshing.RenderTypeAccessor;
 import com.optica.core.rendering.world.bakery.BlockBuilder;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.irisshaders.iris.layer.OuterWrappedRenderType;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.client.renderer.rendertype.RenderType;
-import org.jspecify.annotations.NonNull;
+import org.jetbrains.annotations.Nullable;
 
-public class BlockBuilderBufferSource extends MultiBufferSource.BufferSource {
+/**
+ * Routes the geometry of block entities (chests, signs, beds, ...) into the voxel block builder, one
+ * render type at a time, using the render type's texture as the atlas.
+ *
+ * <p>Optica (26.2): MultiBufferSource is gone; feature renderers take their vertex consumers from
+ * RenderTypeFeatureRenderer.getVertexBuilder, which RenderTypeFeatureRendererMixin sends here while a
+ * capture is active on the current thread (block meshing runs on the chunk compiler threads).
+ */
+public class BlockBuilderBufferSource {
+    private static final ThreadLocal<BlockBuilderBufferSource> ACTIVE = new ThreadLocal<>();
+
     private BlockBuilder blockBuilder;
 
-    public BlockBuilderBufferSource() {
-        super(null, null);
+    public static @Nullable BlockBuilderBufferSource active() {
+        return ACTIVE.get();
     }
 
-    public void setBlockBuilder(BlockBuilder blockBuilder) {
+    /** Captures the block entity geometry submitted on this thread until {@link #end()}. */
+    public void begin(BlockBuilder blockBuilder) {
         this.blockBuilder = blockBuilder;
+        ACTIVE.set(this);
     }
 
-    @Override
-    public @NonNull VertexConsumer getBuffer(@NonNull RenderType renderType) {
+    public void end() {
+        ACTIVE.remove();
+        this.blockBuilder = null;
+    }
+
+    public VertexConsumer getBuffer(RenderType renderType) {
         if (renderType instanceof OuterWrappedRenderType wrapped)
             renderType = ((OuterWrappedRenderTypeAccessor) wrapped).getWrapped();
 
@@ -39,20 +54,5 @@ public class BlockBuilderBufferSource extends MultiBufferSource.BufferSource {
         blockBuilder.useAtlas((Id) (Object) sampler0.getLocation());
 
         return (VertexConsumer) blockBuilder;
-    }
-
-    @Override
-    public void endLastBatch() {
-
-    }
-
-    @Override
-    public void endBatch() {
-
-    }
-
-    @Override
-    public void endBatch(@NonNull RenderType renderType) {
-
     }
 }

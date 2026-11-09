@@ -97,7 +97,7 @@ public class PhotonicsRenderer extends CompositeRenderer {
     @Override
     public void renderAll() {
         var window = Minecraft.getInstance().getWindow();
-        var main = Minecraft.getInstance().getMainRenderTarget();
+        var main = Minecraft.getInstance().gameRenderer.mainRenderTarget();
         int width = window.getWidth() ^ (main.width << 16);
         int height = window.getHeight() ^ (main.height << 16);
 
