@@ -671,3 +671,30 @@ Euphoria Patches 1.10.5 loads with Optica: its `ph_lights.json` is parsed, and t
   block-light.glsl itself and through photonics.glsl -> light.glsl -> its light_modifier.glsl (no include
   guard), so GetBlockColorRange was defined twice (0.3.5 included the modifier there too). Pack programs
   never load lights, so light.glsl now skips the light modifier under PH_LEGACY_PACK_PROGRAM.
+
+## 10. Port to Minecraft 26.2 (Iris 1.11.4, Sodium 0.9.2)
+
+Builds against Minecraft 26.2, Fabric API 0.161.0+26.2, Iris 1.11.4+26.2 and Sodium mc26.2-0.9.2. What
+changed for Optica:
+- Blaze3D: buffer mapping moved from `CommandEncoder.mapBuffer` to `GpuBuffer.map` /
+  `GpuBufferSlice.map`, returning the record `GpuBufferSlice.MappedView` (GlMappedViewMixin now targets
+  it). `TextureFormat` became `GpuFormat` (`RGBA8_UNORM`, `blockSize()`).
+- `BufferStorage$Immutable.tryMapBufferPersistent` is gone: `GlBuffer.Direct` maps persistently at
+  construction when its `canPersistentMap` argument is true, so ImmutableBufferStorageMixin clears that
+  argument for `NO_PERSISTENCE_MAPPING` buffers (the voxel heap).
+- `Minecraft.getMainRenderTarget()` -> `GameRenderer.mainRenderTarget()`, `getMainCamera()` ->
+  `mainCamera()`, `getGameRenderState()` -> `gameRenderState()`, `LevelRenderer.renderLevel` ->
+  `render`, `I18n.exists` -> `Language.getInstance().has`.
+- Sodium 0.9.2 for 26.2 dropped its own `gl` package and draws terrain through Blaze3D render
+  pipelines, and Iris dropped `SodiumShader`/`SodiumPrograms`. Photonics' buffers are now bound to every
+  program in `GlStateManager._glUseProgram` (HEAD, since it returns early for the current program);
+  block indices are cached per program.
+- Block entities: `MultiBufferSource` is gone. `FeatureRenderDispatcher` takes `RenderBuffers` and
+  writes into a `StagedVertexBuffer` during `prepareFrame`. Every feature renderer except particles gets
+  its consumer from `RenderTypeFeatureRenderer.getVertexBuilder(RenderType)`; while Optica captures a
+  block entity (a thread-local in BlockBuilderBufferSource) that returns the block builder. Optica's
+  dispatcher gets its own StagedVertexBuffer (CPU only), only prepares frames (never executes them),
+  skips the GPU `upload()` and the particle renderer's prepare hooks (they read render-thread state).
+- Verified in the dev client (llvmpipe): Photon, BSL, Shrimple and Eclipse load without errors, block
+  light, shadows and the lighting cache work, and chests/signs/beds/banners voxelize without errors.
+  Euphoria Patches was not available in this container.

@@ -2,7 +2,7 @@
 
 Optica: Photonics ported to Minecraft 26.1.2 (Fabric), with Euphoria Patches support and optional performance settings.
 
-**Requirements:** Minecraft 26.1.2, Fabric Loader, Fabric API, Iris 1.11.3+ and Sodium 0.9.1+ (0.9.1 works with Voxy). Optica replaces Photonics; do not install both.
+**Requirements:** Minecraft 26.2, Fabric Loader, Fabric API, Iris 1.11.4+ and Sodium 0.9.2+. Optica replaces Photonics; do not install both. (Optica for Minecraft 26.1.2 is a separate build.)
 
 **New in 0.3.2: Photon, Shrimple, Eclipse and BSL support**
 - BSL now works with Optica (v10.1 through 10.1.8, through Photonics' built-in BSL patch). It used to fail to load, which crashed the game when it happened at startup. Its Photonics toggle, Photonics page and Optica's settings now appear in BSL's menu.
